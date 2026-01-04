@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test getNextTrain()</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0051D5;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .error {
+            color: #d32f2f;
+        }
+        .loading {
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test getNextTrain()</h1>
+    
+    <div class="form-group">
+        <label for="from">From (Location Signature):</label>
+        <input type="text" id="from" placeholder="e.g., Nr" value="Nr">
+    </div>
+    
+    <div class="form-group">
+        <label for="direction">Direction (Location Name):</label>
+        <input type="text" id="direction" placeholder="e.g., Nk" value="Nk">
+    </div>
+    
+    <button id="testBtn" onclick="testGetNextTrain()">Test getNextTrain()</button>
+    
+    <div id="result"></div>
+
+    <!-- Polyfill for Scriptable Request API -->
+    <script>
+        // Polyfill for Scriptable Request API to work in browser
+        if (typeof Request === 'undefined' || !Request.prototype.loadString) {
+            function BrowserRequest(url) {
+                this.url = url
+                this.method = 'GET'
+                this.headers = new Headers()
+                this.body = null
+            }
+            
+            BrowserRequest.prototype.loadString = async function() {
+                const response = await fetch(this.url, {
+                    method: this.method,
+                    headers: this.headers,
+                    body: this.body
+                })
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`)
+                }
+                
+                return await response.text()
+            }
+            
+            // Replace global Request with our polyfill
+            window.Request = BrowserRequest
+        }
+    </script>
+
+    <!-- Import trv.js -->
+    <script src="trv.js"></script>
+
+    <!-- Test function -->
+    <script>
+
+        async function testGetNextTrain() {
+            const from = document.getElementById('from').value.trim()
+            const direction = document.getElementById('direction').value.trim()
+            const resultDiv = document.getElementById('result')
+            const testBtn = document.getElementById('testBtn')
+            
+            if (!from || !direction) {
+                resultDiv.innerHTML = '<span class="error">Please enter both From and Direction values.</span>'
+                return
+            }
+            
+            testBtn.disabled = true
+            resultDiv.innerHTML = '<span class="loading">Loading...</span>'
+            
+            try {
+                const data = await getNextTrain(from, direction)
+                resultDiv.innerHTML = '<strong>Success!</strong>\n\n' + JSON.stringify(data, null, 2)
+            } catch (error) {
+                resultDiv.innerHTML = '<span class="error"><strong>Error:</strong> ' + error.message + '</span>'
+                console.error('Error:', error)
+            } finally {
+                testBtn.disabled = false
+            }
+        }
+    </script>
+</body>
+</html>
+

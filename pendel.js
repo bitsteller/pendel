@@ -22,7 +22,6 @@ async function createWidget(items) {
   let authors = item.authors.map(a => {
     return a.name
   }).join(", ")
-  let imgURL = extractImageURL(item)
   let rawDate = item["date_published"]
   let date = new Date(Date.parse(rawDate))
   let dateFormatter = new DateFormatter()
@@ -36,11 +35,7 @@ async function createWidget(items) {
     new Color("#b00a0fb3")
   ]
   let w = new ListWidget()
-  if (imgURL != null) {
-    let imgReq = new Request(imgURL)
-    let img = await imgReq.loadImage()
-    w.backgroundImage = img
-  }
+
   w.backgroundColor = new Color("#b00a0f")
   w.backgroundGradient = gradient
   // Add spacer above content to center it vertically.
@@ -84,15 +79,4 @@ async function getLocation() {
   Location.setAccuracyToThreeKilometers()
   l = await Location.current()
   return Location.reverseGeocode(l.latitude, l.longitude)
-}
-
-function extractImageURL(item) {
-  let regex = /<img src="(.*)" alt="/
-  let html = item["content_html"]
-  let matches = html.match(regex)
-  if (matches && matches.length >= 2) {
-    return matches[1]
-  } else {
-    return null
-  }
 }
