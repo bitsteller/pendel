@@ -3,7 +3,7 @@ var url = 'https://api.trafikinfo.trafikverket.se/v2/data.json'
 
 async function sendAPIRequest(query) {
     var request = new Request(url)
-    request.headers.set('Content-Type', 'application/xml')
+    request.headers = {"Content-Type": 'application/xml'}
 
     var requestBody = `
     <REQUEST>
@@ -106,6 +106,7 @@ function getNextTrainQuery(from, direction) {
         <INCLUDE>ProductInformation</INCLUDE>
         <INCLUDE>Canceled</INCLUDE>
         <INCLUDE>Deviation</INCLUDE>
+        <INCLUDE>TrackAtLocation</INCLUDE>
         </QUERY>
     `
     return query
