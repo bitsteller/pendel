@@ -148,7 +148,16 @@ async function createWidget(train) {
   w.backgroundColor = new Color("#b00a0f")
   // Add spacer above content to center it vertically.
   w.addSpacer()
-  // Show time information
+
+  // Platform information
+  let platformStr = from + ", Spår " + train.TrackAtLocation;
+  let platformTxt = w.addText(platformStr)
+  platformTxt.font = Font.mediumSystemFont(12)
+  platformTxt.textColor = Color.white()
+  platformTxt.textOpacity = 0.9
+
+  w.addSpacer(8)
+  // Time information
   let timeStack = w.addStack()
   let countdown = timeStack.addDate(train.ExpectedDepartureTime)
   countdown.applyRelativeStyle();
@@ -157,7 +166,7 @@ async function createWidget(train) {
 
   w.addSpacer(8)
   // Tåginfo
-  let trainStr = train.Product + " " + train.AdvertisedTrainIdent + " mot " + train.ToLocation.LocationName + " fråm spår" + train.TrackAtLocation;
+  let trainStr = train.Product + " " + train.AdvertisedTrainIdent + " mot " + train.ToLocation[0].LocationName;
   let trainTxt = w.addText(trainStr)
   trainTxt.font = Font.mediumSystemFont(12)
   trainTxt.textColor = Color.white()
