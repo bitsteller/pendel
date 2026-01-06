@@ -42,7 +42,7 @@
             background-color: #ccc;
             cursor: not-allowed;
         }
-        #result {
+        #result, #stationNamesResult, #trafficInfoResult {
             margin-top: 20px;
             padding: 15px;
             border: 1px solid #ddd;
@@ -75,7 +75,37 @@
     
     <button id="testBtn" onclick="testGetNextTrain()">Test getNextTrain()</button>
     
+    <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
+    
+    <h2>Test getStationNames()</h2>
+    
+    <div class="form-group">
+        <label for="locationSignatures">Location Signatures (comma-separated):</label>
+        <input type="text" id="locationSignatures" placeholder="e.g., Nr, Nk, Cst" value="Nr, Nk, Cst">
+    </div>
+    
+    <button id="testStationNamesBtn" onclick="testGetStationNames()">Test getStationNames()</button>
+    
     <div id="result"></div>
+    <div id="stationNamesResult"></div>
+
+    <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
+
+    <h2>Test getTrafficInfo()</h2>
+
+    <div class="form-group">
+        <label for="trafficLocation1">Location Signature 1:</label>
+        <input type="text" id="trafficLocation1" placeholder="e.g., Nr" value="Nr">
+    </div>
+
+    <div class="form-group">
+        <label for="trafficLocation2">Location Signature 2:</label>
+        <input type="text" id="trafficLocation2" placeholder="e.g., Nk" value="Nk">
+    </div>
+
+    <button id="testTrafficInfoBtn" onclick="testGetTrafficInfo()">Test getTrafficInfo()</button>
+
+    <div id="trafficInfoResult"></div>
 
     <!-- Polyfill for Scriptable Request API -->
     <script>
@@ -129,6 +159,63 @@
             
             try {
                 const data = await getNextTrain(from, direction)
+                resultDiv.innerHTML = '<strong>Success!</strong>\n\n' + JSON.stringify(data, null, 2)
+            } catch (error) {
+                resultDiv.innerHTML = '<span class="error"><strong>Error:</strong> ' + error.message + '</span>'
+                console.error('Error:', error)
+            } finally {
+                testBtn.disabled = false
+            }
+        }
+
+        async function testGetStationNames() {
+            const locationSignaturesInput = document.getElementById('locationSignatures').value.trim()
+            const resultDiv = document.getElementById('stationNamesResult')
+            const testBtn = document.getElementById('testStationNamesBtn')
+            
+            if (!locationSignaturesInput) {
+                resultDiv.innerHTML = '<span class="error">Please enter location signatures.</span>'
+                return
+            }
+            
+            // Parse comma-separated location signatures
+            const locationSignatures = locationSignaturesInput.split(',').map(sig => sig.trim()).filter(sig => sig.length > 0)
+            
+            if (locationSignatures.length === 0) {
+                resultDiv.innerHTML = '<span class="error">Please enter at least one location signature.</span>'
+                return
+            }
+            
+            testBtn.disabled = true
+            resultDiv.innerHTML = '<span class="loading">Loading...</span>'
+            
+            try {
+                const data = await getStationNames(locationSignatures)
+                resultDiv.innerHTML = '<strong>Success!</strong>\n\n' + JSON.stringify(data, null, 2)
+            } catch (error) {
+                resultDiv.innerHTML = '<span class="error"><strong>Error:</strong> ' + error.message + '</span>'
+                console.error('Error:', error)
+            } finally {
+                testBtn.disabled = false
+            }
+        }
+
+        async function testGetTrafficInfo() {
+            const loc1 = document.getElementById('trafficLocation1').value.trim()
+            const loc2 = document.getElementById('trafficLocation2').value.trim()
+            const resultDiv = document.getElementById('trafficInfoResult')
+            const testBtn = document.getElementById('testTrafficInfoBtn')
+
+            if (!loc1 || !loc2) {
+                resultDiv.innerHTML = '<span class="error">Please enter both location signatures.</span>'
+                return
+            }
+
+            testBtn.disabled = true
+            resultDiv.innerHTML = '<span class="loading">Loading...</span>'
+
+            try {
+                const data = await getTrafficInfo(loc1, loc2)
                 resultDiv.innerHTML = '<strong>Success!</strong>\n\n' + JSON.stringify(data, null, 2)
             } catch (error) {
                 resultDiv.innerHTML = '<span class="error"><strong>Error:</strong> ' + error.message + '</span>'
