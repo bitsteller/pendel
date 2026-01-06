@@ -33,7 +33,12 @@ function getNextTrainQuery(from, direction) {
                 <NOT>
                     <EXISTS name="TimeAtLocation" value="true" />
                 </NOT>
-                <GT name="AdvertisedTimeAtLocation" value="$dateadd(-1:00:00)" />
+                <OR>
+                  <GT name="AdvertisedTimeAtLocation" value="$dateadd(-1:00:00)" />
+                  <ELEMENTMATCH>
+                    <EQ name="Deviation.Code" value="ANA007" /> <!--buss ersätter-->
+                  </ELEMENTMATCH>
+                </OR>
                 <OR>
                     <LT name="AdvertisedTimeAtLocation" value="$dateadd(3:00:00)" />
                     <LT name="EstimatedTimeAtLocation" value="$dateadd(3:00:00)" />
@@ -118,12 +123,19 @@ async function getNextTrain(from, direction) {
     trains.forEach(train => {
         //Deviations
         train.Deviations = [];
+        train.ReplacedByBus = false;
 
+        //Deviations and ReplacedByBus
         if ("Deviation" in train) {
             train.Deviation.forEach(deviation => {
                 train.Deviations.push(deviation.Description);
             });
+
+            if (train.Deviation.filter(deviation => deviation.Code == "ANA007").length > 0) {
+                train.ReplacedByBus = true;
+            }
         }
+
 
         //ExpectedDepartureTime
         // use estimated time if available and planned otherwise
@@ -144,16 +156,16 @@ async function getNextTrain(from, direction) {
         }
 
         //Delay
-        if ("EstimatedTimeAtLocation" in train & !train.Canceled) {
+        if ("EstimatedTimeAtLocation" in train && (!train.Canceled || train.ReplacedByBus)) {
             train.Delay = (new Date(train.EstimatedTimeAtLocation) - new Date(train.AdvertisedTimeAtLocation)) / (1000*60);
-        } else if (train.Canceled || "Invänta tid" in train.Deviations) {
+        } else if (train.Canceled || train.Deviations.includes("Invänta tid")) {
             train.Delay = null;
         } else {
             train.Delay = 0;
         }
 
         //Status
-        if (train.Canceled || ("Invänta tid" in train.Deviations)) {
+        if (train.Canceled || (train.Deviations.includes("Invänta tid"))) {
             train.Status = "Major deviation";
         } else if (train.Delay > 10) {
             train.Status = "Major deviation";
@@ -164,7 +176,7 @@ async function getNextTrain(from, direction) {
         }
     });
 
-    // Keep cancelled trains only until planned departure
+    // List cancelled trains only until planned departure
     canceledTrains = [];
     trains.forEach(train => {
         if (train.Canceled && (train.PlannedDepartureTime - new Date() > 0)) {
@@ -172,9 +184,9 @@ async function getNextTrain(from, direction) {
         }
     });
 
-    // Keep only trains that are not cancelled
+    // Keep only trains that are not cancelled or replaced by bus
     trains = trains.filter(train => {
-        return !train.Canceled;
+        return !train.Canceled || (train.ReplacedByBus && train.ExpectedDepartureTimeTime - new Date() > 0);
     });
 
     // sort by expected departure time
@@ -193,7 +205,7 @@ async function getNextTrain(from, direction) {
 
         nextTrain.trafficInfo = [];
 
-        if (canceledTrains.length > 2) {
+        if (canceledTrains.length >= 2) {
             canceledText = "Tåg " + canceledTrains.join(", ") + " inställda";
             nextTrain.trafficInfo.push(canceledText);
         } else if (canceledTrains.length == 1) {
@@ -250,11 +262,6 @@ async function getTrafficInfo(locationSignature1, locationSignature2) {
 
     return messages;
 }
-
-
-
-
-
 /*
  Widget code
 */
@@ -284,10 +291,39 @@ Script.setWidget(widget)
 Script.complete()
 
 async function createWidget(train) {
+  var alertColor = new Color("e00000")
+
   if (train == null) {
     let w = new ListWidget()
     w.addText("Inga avgångar närmaste 3 timmar")
     w.refreshAfterDate = new Date(Date.now() + 90 * 60 * 1000); //90 minutes
+
+    w.addSpacer(6)
+    // Traffic info
+    try {
+      if (!config.runsInAccessoryWidget || config.widgetFamily == "accessoryRectangular") {
+        let trafficInfoStr = (await getTrafficInfo(from, direction)).join(", ");
+
+        if (trafficInfoStr.length > 0) {
+          let trafficInfoStack = w.addStack()
+          let infoSymbol = SFSymbol.named("info.circle")
+          infoSymbol.applyFont(Font.regularSystemFont(14))
+          let infoImg = trafficInfoStack.addImage(infoSymbol.image)
+          infoImg.imageSize = new Size(12, 12)
+          infoImg.tintColor = alertColor;
+          trafficInfoStack.addSpacer(4)
+          let trafficInfoTxt = trafficInfoStack.addText(trafficInfoStr)
+          trafficInfoTxt.font = Font.regularSystemFont(12)
+          trafficInfoTxt.textColor = alertColor;
+          trafficInfoTxt.textOpacity = 1.0
+          w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000); //15 minutes
+        }
+      }
+    } catch (error) {
+      console.error("Error getting traffic info: " + error);
+    }
+
+
     return w
   }
 
@@ -296,13 +332,12 @@ async function createWidget(train) {
 
   //Set color according to status
   var textColor = Color.white();
-  var alertColor = Color.red()
   if (train.Status == "Major deviation") {
-    w.backgroundColor = new Color("#b00a0f")
-    textColor = new Color("#e8c492")
+    w.backgroundColor = new Color("e00000")
+    textColor = new Color("#eeeeee")
     alertColor = Color.white();
   } else if (train.Status == "Minor deviation") {
-    w.backgroundColor = new Color("#0055cc")
+    w.backgroundColor = new Color("#00337A")
   } else {
     w.backgroundColor = new Color("#00204C")
   }
@@ -325,10 +360,10 @@ async function createWidget(train) {
     let awaitTimeTxt = w.addText("Invänta tid")
     awaitTimeTxt.font = Font.boldSystemFont(16)
     awaitTimeTxt.textColor = alertColor;
-  } else if (train.ExpectedDepartureTime - new Date() < 0.5 * 60 * 1000) {
+  } else if (train.ExpectedDepartureTime - new Date() < 1 * 60 * 1000) {
     let departingTxt = w.addText("Avgår nu")
     departingTxt.font = Font.boldSystemFont(16)
-    departingTxt.textColor = alertColor;
+    departingTxt.textColor = textColor;
   } else if (train.ExpectedDepartureTime - new Date() < 60 * 60 * 1000) {
     let timeStack = w.addStack()
     let countdown = timeStack.addDate(train.ExpectedDepartureTime)
@@ -386,7 +421,7 @@ async function createWidget(train) {
   if ((!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular")) && train.Deviations.length > 0) {
     let deviationStack = w.addStack()
     let warningSymbol = SFSymbol.named("exclamationmark.triangle")
-    warningSymbol.applyFont(Font.mediumSystemFont(16))
+    warningSymbol.applyFont(Font.mediumSystemFont(14))
     let warningImg = deviationStack.addImage(warningSymbol.image)
     warningImg.imageSize = new Size(12, 12)
     warningImg.tintColor = alertColor
@@ -401,15 +436,15 @@ async function createWidget(train) {
   if (!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular" && train.Deviations.length == 0)) {
     let trafficInfoStack = w.addStack()
     let infoSymbol = SFSymbol.named("info.circle")
-    infoSymbol.applyFont(Font.mediumSystemFont(16))
+    infoSymbol.applyFont(Font.regularSystemFont(14))
     let infoImg = trafficInfoStack.addImage(infoSymbol.image)
     infoImg.imageSize = new Size(12, 12)
-    infoImg.tintColor = alertColor;
+    infoImg.tintColor = textColor;
     trafficInfoStack.addSpacer(4)
     let trafficInfoTxt = trafficInfoStack.addText(train.trafficInfo.join(", "))
-    trafficInfoTxt.font = Font.mediumSystemFont(12)
-    trafficInfoTxt.textColor = alertColor;
-    trafficInfoTxt.textOpacity = 0.9
+    trafficInfoTxt.font = Font.regularSystemFont(12)
+    trafficInfoTxt.textColor = textColor;
+    trafficInfoTxt.textOpacity = 1.0
   }
   
   // Add spacing below content to center it vertically.

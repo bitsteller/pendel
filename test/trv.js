@@ -26,7 +26,12 @@ function getNextTrainQuery(from, direction) {
                 <NOT>
                     <EXISTS name="TimeAtLocation" value="true" />
                 </NOT>
-                <GT name="AdvertisedTimeAtLocation" value="$dateadd(-1:00:00)" />
+                <OR>
+                  <GT name="AdvertisedTimeAtLocation" value="$dateadd(-1:00:00)" />
+                  <ELEMENTMATCH>
+                    <EQ name="Deviation.Code" value="ANA007" /> <!--buss ersätter-->
+                  </ELEMENTMATCH>
+                </OR>
                 <OR>
                     <LT name="AdvertisedTimeAtLocation" value="$dateadd(3:00:00)" />
                     <LT name="EstimatedTimeAtLocation" value="$dateadd(3:00:00)" />
@@ -111,12 +116,19 @@ async function getNextTrain(from, direction) {
     trains.forEach(train => {
         //Deviations
         train.Deviations = [];
+        train.ReplacedByBus = false;
 
+        //Deviations and ReplacedByBus
         if ("Deviation" in train) {
             train.Deviation.forEach(deviation => {
                 train.Deviations.push(deviation.Description);
             });
+
+            if (train.Deviation.filter(deviation => deviation.Code == "ANA007").length > 0) {
+                train.ReplacedByBus = true;
+            }
         }
+
 
         //ExpectedDepartureTime
         // use estimated time if available and planned otherwise
@@ -137,16 +149,16 @@ async function getNextTrain(from, direction) {
         }
 
         //Delay
-        if ("EstimatedTimeAtLocation" in train & !train.Canceled) {
+        if ("EstimatedTimeAtLocation" in train && (!train.Canceled || train.ReplacedByBus)) {
             train.Delay = (new Date(train.EstimatedTimeAtLocation) - new Date(train.AdvertisedTimeAtLocation)) / (1000*60);
-        } else if (train.Canceled || "Invänta tid" in train.Deviations) {
+        } else if (train.Canceled || train.Deviations.includes("Invänta tid")) {
             train.Delay = null;
         } else {
             train.Delay = 0;
         }
 
         //Status
-        if (train.Canceled || ("Invänta tid" in train.Deviations)) {
+        if (train.Canceled || (train.Deviations.includes("Invänta tid"))) {
             train.Status = "Major deviation";
         } else if (train.Delay > 10) {
             train.Status = "Major deviation";
@@ -157,7 +169,7 @@ async function getNextTrain(from, direction) {
         }
     });
 
-    // Keep cancelled trains only until planned departure
+    // List cancelled trains only until planned departure
     canceledTrains = [];
     trains.forEach(train => {
         if (train.Canceled && (train.PlannedDepartureTime - new Date() > 0)) {
@@ -165,9 +177,9 @@ async function getNextTrain(from, direction) {
         }
     });
 
-    // Keep only trains that are not cancelled
+    // Keep only trains that are not cancelled or replaced by bus
     trains = trains.filter(train => {
-        return !train.Canceled;
+        return !train.Canceled || (train.ReplacedByBus && train.ExpectedDepartureTimeTime - new Date() > 0);
     });
 
     // sort by expected departure time
@@ -185,17 +197,18 @@ async function getNextTrain(from, direction) {
         }
 
         nextTrain.trafficInfo = [];
-        try {
-            nextTrain.trafficInfo = await getTrafficInfo(from, direction);
-        } catch (error) {
-            console.error("Error getting traffic info: " + error);
-        }
 
-        if (canceledTrains.length > 2) {
+        if (canceledTrains.length >= 2) {
             canceledText = "Tåg " + canceledTrains.join(", ") + " inställda";
             nextTrain.trafficInfo.push(canceledText);
         } else if (canceledTrains.length == 1) {
             nextTrain.trafficInfo.push("Tåg " + canceledTrains[0] + " inställt");
+        }
+
+        try {
+            nextTrain.trafficInfo = nextTrain.trafficInfo.concat(await getTrafficInfo(from, direction));
+        } catch (error) {
+            console.error("Error getting traffic info: " + error);
         }
 
         return nextTrain;
