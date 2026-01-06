@@ -132,7 +132,7 @@ async function getNextTrain(from, direction) {
 
         //ExpectedDepartureTime
         // use estimated time if available and planned otherwise
-        if ("EstimatedTimeAtLocation" in train & !train.Canceled) {
+        if ("EstimatedTimeAtLocation" in train) {
             train.ExpectedDepartureTime = new Date(train.EstimatedTimeAtLocation)
         } else {
             train.ExpectedDepartureTime = new Date(train.AdvertisedTimeAtLocation)
@@ -179,7 +179,7 @@ async function getNextTrain(from, direction) {
 
     // Keep only trains that are not cancelled or replaced by bus
     trains = trains.filter(train => {
-        return !train.Canceled || (train.ReplacedByBus && train.ExpectedDepartureTimeTime - new Date() > 0);
+        return !train.Canceled || (train.ReplacedByBus && (train.ExpectedDepartureTime - new Date() > 0));
     });
 
     // sort by expected departure time
