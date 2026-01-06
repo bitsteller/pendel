@@ -167,7 +167,7 @@ async function getNextTrain(from, direction) {
         //Status
         if (train.Canceled || (train.Deviations.includes("Invänta tid"))) {
             train.Status = "Major deviation";
-        } else if (train.Delay > 10) {
+        } else if (train.Delay > 15) {
             train.Status = "Major deviation";
         } else if (train.Delay > 0 || train.Deviations.length > 0) {
             train.Status = "Minor deviation";
@@ -276,6 +276,17 @@ try {
   direction = params[1].trim();
 } catch (error) {
   console.error("Error parsing parameters: " + error);
+}
+
+if (args.widgetParameter == "") {
+  //DEBUG: from Nr to Nk if clock is between 0:00 and 12:00 and from Nk to Nr if clock is between 12:00 and 24:00
+  if (new Date().getHours() >= 0 && new Date().getHours() < 12) {
+    from = "Nr";
+    direction = "Nk";
+  } else {
+    from = "Nk";
+    direction = "Nr";
+  }
 }
 
 let nextTrain = await getNextTrain(from, direction);

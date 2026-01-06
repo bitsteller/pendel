@@ -160,7 +160,7 @@ async function getNextTrain(from, direction) {
         //Status
         if (train.Canceled || (train.Deviations.includes("Invänta tid"))) {
             train.Status = "Major deviation";
-        } else if (train.Delay > 10) {
+        } else if (train.Delay > 15) {
             train.Status = "Major deviation";
         } else if (train.Delay > 0 || train.Deviations.length > 0) {
             train.Status = "Minor deviation";
