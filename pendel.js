@@ -99,8 +99,7 @@ function getTrafficInfoQuery(locationSignature1, locationSignature2) {
                 <IN name="EventTrafficType" value="0,2" />
                 <EQ name="Deleted" value="false" />
                 <ELEMENTMATCH>
-                <EQ name="TrafficImpact.SelectedSection.SectionLocation.Signature" value="${locationSignature1}"/>
-                <EQ name="TrafficImpact.SelectedSection.SectionLocation.Signature" value="${locationSignature2}"/>
+                <LIKE name="TrafficImpact.SelectedSection.SectionLocation.Signature" value="/^(${locationSignature1}|${locationSignature2})$/"/>
                 <EXISTS name="TrafficImpact.PublicMessage" value="True" />
                 <GTE name="TrafficImpact.PublicMessage.EndDateTime" value="$now"/>
                 </ELEMENTMATCH>
@@ -255,6 +254,9 @@ async function getTrafficInfo(locationSignature1, locationSignature2) {
         });
     }
 
+    //trim all messages
+    messages = messages.map(message => message.trim());
+
     //keep only unique messages
     messages = messages.filter((message, index, self) =>
         self.indexOf(message) === index
@@ -302,7 +304,8 @@ Script.setWidget(widget)
 Script.complete()
 
 async function createWidget(train) {
-  var alertColor = new Color("e00000")
+  var alertColor = new Color("e00000");
+  var textColor = Color.white();
 
   if (train == null) {
     let w = new ListWidget()
@@ -342,7 +345,7 @@ async function createWidget(train) {
   w.url = train.WebLink;
 
   //Set color according to status
-  var textColor = Color.white();
+  
   if (train.Status == "Major deviation") {
     w.backgroundColor = new Color("e00000")
     textColor = new Color("#eeeeee")
