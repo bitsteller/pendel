@@ -92,20 +92,22 @@ function getStationNamesQuery(locationSignatures) {
 
 function getTrafficInfoQuery(locationSignature1, locationSignature2) {
     var query = `
-        <QUERY objecttype="OperativeEvent" namespace="ols.open" schemaversion="1" limit="10">
+        <QUERY objecttype="OperativeEvent" namespace="ols.open" schemaversion="1" orderby="StartDateTime desc, TrafficImpact.PublicMessage.StartDateTime desc" limit="5">
             <FILTER>
             <AND>
                 <EQ name="EventState" value="1" />
                 <IN name="EventTrafficType" value="0,2" />
                 <EQ name="Deleted" value="false" />
-                <ELEMENTMATCH>
-                <LIKE name="TrafficImpact.SelectedSection.SectionLocation.Signature" value="/^(${locationSignature1}|${locationSignature2})$/"/>
                 <EXISTS name="TrafficImpact.PublicMessage" value="True" />
                 <GTE name="TrafficImpact.PublicMessage.EndDateTime" value="$now"/>
-                </ELEMENTMATCH>
+                <AND>
+                  <EQ name="TrafficImpact.SelectedSection.SectionLocation.Signature" value="${locationSignature1}"/>
+                  <EQ name="TrafficImpact.SelectedSection.SectionLocation.Signature" value="${locationSignature2}"/>
+                </AND>
             </AND>
             </FILTER>
             <INCLUDE>TrafficImpact.PublicMessage</INCLUDE>
+            <INCLUDE>StartDateTime</INCLUDE>
         </QUERY>
     `
     return query
@@ -348,7 +350,7 @@ async function createWidget(train) {
   
   if (train.Status == "Major deviation") {
     w.backgroundColor = new Color("e00000")
-    textColor = new Color("#eeeeee")
+    textColor = new Color("#c0c0c0")
     alertColor = Color.white();
   } else if (train.Status == "Minor deviation") {
     w.backgroundColor = new Color("#00337A")
