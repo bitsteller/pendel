@@ -122,12 +122,13 @@ async function getNextTrain(from, direction) {
         //Deviations and ReplacedByBus
         if ("Deviation" in train) {
             train.Deviation.forEach(deviation => {
-                train.Deviations.push(deviation.Description);
+                if (deviation.Code == "ANA007") {
+                    train.ReplacedByBus = true;
+                    train.Deviations.push("Ersättningsbuss");
+                } else {
+                    train.Deviations.push(deviation.Description);
+                }
             });
-
-            if (train.Deviation.filter(deviation => deviation.Code == "ANA007").length > 0) {
-                train.ReplacedByBus = true;
-            }
         }
 
 
@@ -244,7 +245,9 @@ async function getTrafficInfo(locationSignature1, locationSignature2) {
     if (data.RESPONSE && data.RESPONSE.RESULT && data.RESPONSE.RESULT[0]) {
         data.RESPONSE.RESULT[0].OperativeEvent.forEach(event => {
             event.TrafficImpact.forEach(impact => {
-                messages.push(impact.PublicMessage.Header);
+                if (impact.PublicMessage.Header) {
+                    messages.push(impact.PublicMessage.Header);
+                }
             });
         });
     }

@@ -129,12 +129,13 @@ async function getNextTrain(from, direction) {
         //Deviations and ReplacedByBus
         if ("Deviation" in train) {
             train.Deviation.forEach(deviation => {
-                train.Deviations.push(deviation.Description);
+                if (deviation.Code == "ANA007") {
+                    train.ReplacedByBus = true;
+                    train.Deviations.push("Ersättningsbuss");
+                } else {
+                    train.Deviations.push(deviation.Description);
+                }
             });
-
-            if (train.Deviation.filter(deviation => deviation.Code == "ANA007").length > 0) {
-                train.ReplacedByBus = true;
-            }
         }
 
 
@@ -251,7 +252,9 @@ async function getTrafficInfo(locationSignature1, locationSignature2) {
     if (data.RESPONSE && data.RESPONSE.RESULT && data.RESPONSE.RESULT[0]) {
         data.RESPONSE.RESULT[0].OperativeEvent.forEach(event => {
             event.TrafficImpact.forEach(impact => {
-                messages.push(impact.PublicMessage.Header);
+                if (impact.PublicMessage.Header) {
+                    messages.push(impact.PublicMessage.Header);
+                }
             });
         });
     }
@@ -282,7 +285,7 @@ try {
   console.error("Error parsing parameters: " + error);
 }
 
-if (args.widgetParameter == "") {
+if (args.widgetParameter == null || args.widgetParameter == "") {
   //DEBUG: from Nr to Nk if clock is between 0:00 and 12:00 and from Nk to Nr if clock is between 12:00 and 24:00
   if (new Date().getHours() >= 0 && new Date().getHours() < 12) {
     from = "Nr";
@@ -353,7 +356,7 @@ async function createWidget(train) {
     textColor = new Color("#c0c0c0")
     alertColor = Color.white();
   } else if (train.Status == "Minor deviation") {
-    w.backgroundColor = new Color("#00337A")
+    w.backgroundColor = new Color("#004cb5")
   } else {
     w.backgroundColor = new Color("#00204C")
   }
@@ -403,7 +406,7 @@ async function createWidget(train) {
     delayStack.addSpacer(2)
     let delayTime = delayStack.addDate(train.ExpectedDepartureTime)
     delayTime.applyTimeStyle();
-    delayTime.font = Font.mediumSystemFont(12)
+    delayTime.font = Font.boldSystemFont(12)
     delayTime.textColor = alertColor;
     delayTime.textOpacity = 0.9;
 
@@ -449,7 +452,7 @@ async function createWidget(train) {
   }
 
   // Traffic info
-  if (!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular" && train.Deviations.length == 0)) {
+  if (!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular" && train.Deviations.length == 0) && train.trafficInfo.length > 0) {
     let trafficInfoStack = w.addStack()
     let infoSymbol = SFSymbol.named("info.circle")
     infoSymbol.applyFont(Font.regularSystemFont(14))
