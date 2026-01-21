@@ -24,6 +24,53 @@ async function sendAPIRequest(query) {
     return await request.loadString()
 }
 
+function shortenString(str, limit) {
+    if (str.length <= limit) {
+        return str;
+    }
+    
+    // Reserve space for "..."
+    var truncateLimit = limit - 3;
+    
+    // Try to find the last non-alphabetic character (word separator) before the limit
+    var lastSeparator = -1;
+    for (var i = truncateLimit - 1; i >= 0; i--) {
+        var char = str.charAt(i);
+        if (!/[a-zA-Z]/.test(char)) {
+            lastSeparator = i;
+            break;
+        }
+    }
+    
+    // If we found a separator and it's not too far from the limit (within reasonable distance)
+    if (lastSeparator > 0 && lastSeparator > truncateLimit * 0.5) {
+        return str.substring(0, lastSeparator) + "...";
+    }
+    
+    // Check if the last word is very long (more than 50% of limit or > 10 chars)
+    var nextSeparator = -1;
+    for (var i = truncateLimit; i < str.length; i++) {
+        var char = str.charAt(i);
+        if (!/[a-zA-Z]/.test(char)) {
+            nextSeparator = i;
+            break;
+        }
+    }
+    var lastWordLength = nextSeparator > 0 ? nextSeparator - truncateLimit : str.length - truncateLimit;
+    
+    // If the last word is very long, truncate in the middle
+    if (lastWordLength > Math.max(limit * 0.5, 10)) {
+        return str.substring(0, truncateLimit) + "...";
+    }
+    
+    // Otherwise, truncate at word boundary (use the separator we found, or truncate if no separator)
+    if (lastSeparator > 0) {
+        return str.substring(0, lastSeparator) + "...";
+    }
+    
+    // Fallback: truncate in the middle if no separator found
+    return str.substring(0, truncateLimit) + "...";
+}
 
 function getNextTrainQuery(from, direction) {
     var query = `
@@ -253,7 +300,7 @@ async function getTrafficInfo(locationSignature1, locationSignature2) {
         data.RESPONSE.RESULT[0].OperativeEvent.forEach(event => {
             event.TrafficImpact.forEach(impact => {
                 if (impact.PublicMessage.Header) {
-                    messages.push(impact.PublicMessage.Header);
+                    messages.push(shortenString(impact.PublicMessage.Header, 25));
                 }
             });
         });
@@ -269,6 +316,7 @@ async function getTrafficInfo(locationSignature1, locationSignature2) {
 
     return messages;
 }
+
 /*
  Widget code
 */
@@ -296,15 +344,27 @@ if (args.widgetParameter == null || args.widgetParameter == "") {
   }
 }
 
-let nextTrain = await getNextTrain(from, direction);
-let widget = await createWidget(nextTrain)
-// Check if the script is running in
-// a widget. If not, show a preview of
-// the widget to easier debug it.
-if (!config.runsInWidget) {
-  await widget.presentMedium()
+var widget = null;
+try {
+  let nextTrain = await getNextTrain(from, direction);
+  widget = await createWidget(nextTrain)
+  // Check if the script is running in
+  // a widget. If not, show a preview of
+  // the widget to easier debug it.
+  if (!config.runsInWidget) {
+    await widget.presentMedium()
+  }
+  // Tell the system to show the widget.
+} catch (error) {
+  console.error("Error getting next train: " + error);
+  widget = new ListWidget()
+  let errorTxt = widget.addText("Error getting next train: " + error)
+  errorTxt.font = Font.mediumSystemFont(12)
+  errorTxt.textColor = Color.red()
+  errorTxt.textOpacity = 1.0
+  widget.refreshAfterDate = new Date(Date.now() + 10 * 60 * 1000); //10 minutes
 }
-// Tell the system to show the widget.
+
 Script.setWidget(widget)
 Script.complete()
 
@@ -452,7 +512,7 @@ async function createWidget(train) {
   }
 
   // Traffic info
-  if (!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular" && train.Deviations.length == 0) && train.trafficInfo.length > 0) {
+  if ((!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular" && train.Deviations.length == 0)) && train.trafficInfo.length > 0) {
     let trafficInfoStack = w.addStack()
     let infoSymbol = SFSymbol.named("info.circle")
     infoSymbol.applyFont(Font.regularSystemFont(14))
