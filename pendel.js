@@ -239,7 +239,7 @@ async function getNextTrain(from, direction) {
     });
 
     // sort by expected departure time
-    trains.sort((a, b) => a.PlannedDepartureTime - b.PlannedDepartureTime)
+    trains.sort((a, b) => a.ExpectedDepartureTime - b.ExpectedDepartureTime)
 
     
     if (trains.length > 0) {
