@@ -160,119 +160,6 @@ function getTrafficInfoQuery(locationSignature1, locationSignature2) {
     return query
 }
 
-async function getNextTrain(from, direction) {
-    var response = await sendAPIRequest(getNextTrainQuery(from, direction))
-    data = JSON.parse(response)
-
-    if (data.RESPONSE && data.RESPONSE.RESULT && data.RESPONSE.RESULT[0]) {
-        trains = data.RESPONSE.RESULT[0].TrainAnnouncement || []
-    }
-
-    trains.forEach(train => {
-        //Deviations
-        train.Deviations = [];
-        train.ReplacedByBus = false;
-
-        //Deviations and ReplacedByBus
-        if ("Deviation" in train) {
-            train.Deviation.forEach(deviation => {
-                if (deviation.Code == "ANA007") {
-                    train.ReplacedByBus = true;
-                    train.Deviations.push("Ersättningsbuss");
-                } else {
-                    train.Deviations.push(deviation.Description);
-                }
-            });
-        }
-
-
-        //ExpectedDepartureTime
-        // use estimated time if available and planned otherwise
-        if ("EstimatedTimeAtLocation" in train) {
-            train.ExpectedDepartureTime = new Date(train.EstimatedTimeAtLocation)
-        } else {
-            train.ExpectedDepartureTime = new Date(train.AdvertisedTimeAtLocation)
-        }
-
-        //PlannedDepartureTime
-        train.PlannedDepartureTime = new Date(train.AdvertisedTimeAtLocation)
-
-        //Product
-        if (train.ProductInformation.length > 0) {
-            train.Product = train.ProductInformation[0].Description;
-        } else {
-            train.Product = "Tåg";
-        }
-
-        //Delay
-        if ("EstimatedTimeAtLocation" in train && (!train.Canceled || train.ReplacedByBus)) {
-            train.Delay = (new Date(train.EstimatedTimeAtLocation) - new Date(train.AdvertisedTimeAtLocation)) / (1000*60);
-        } else if (train.Canceled || train.Deviations.includes("Invänta tid")) {
-            train.Delay = null;
-        } else {
-            train.Delay = 0;
-        }
-
-        //Status
-        if (train.Canceled || (train.Deviations.includes("Invänta tid"))) {
-            train.Status = "Major deviation";
-        } else if (train.Delay > 15) {
-            train.Status = "Major deviation";
-        } else if (train.Delay > 0 || train.Deviations.length > 0) {
-            train.Status = "Minor deviation";
-        } else {
-            train.Status = "On time";
-        }
-    });
-
-    // List cancelled trains only until planned departure
-    canceledTrains = [];
-    trains.forEach(train => {
-        if (train.Canceled && (train.PlannedDepartureTime - new Date() > 0)) {
-            canceledTrains.push(train.AdvertisedTrainIdent);
-        }
-    });
-
-    // Keep only trains that are not cancelled or replaced by bus
-    trains = trains.filter(train => {
-        return !train.Canceled || (train.ReplacedByBus && (train.ExpectedDepartureTime - new Date() > 0));
-    });
-
-    // sort by expected departure time
-    trains.sort((a, b) => a.ExpectedDepartureTime - b.ExpectedDepartureTime)
-
-    
-    if (trains.length > 0) {
-        let nextTrain = trains[0];
-        try {
-            let stationNames = await getStationNames([nextTrain.LocationSignature, nextTrain.ToLocation[0].LocationName]);
-            nextTrain.DepartureStation = stationNames[nextTrain.LocationSignature];
-            nextTrain.DestinationStation = stationNames[nextTrain.ToLocation[0].LocationName];
-        } catch (error) {
-            console.error("Error getting station names: " + error);
-        }
-
-        nextTrain.trafficInfo = [];
-
-        if (canceledTrains.length >= 2) {
-            canceledText = "Tåg " + canceledTrains.join(", ") + " inställda";
-            nextTrain.trafficInfo.push(canceledText);
-        } else if (canceledTrains.length == 1) {
-            nextTrain.trafficInfo.push("Tåg " + canceledTrains[0] + " inställt");
-        }
-
-        try {
-            nextTrain.trafficInfo = nextTrain.trafficInfo.concat(await getTrafficInfo(from, direction));
-        } catch (error) {
-            console.error("Error getting traffic info: " + error);
-        }
-
-        return nextTrain;
-    } else {
-        return null;
-    }
-}
-
 
 async function getStationNames(locationSignatures) {
     var response = await sendAPIRequest(getStationNamesQuery(locationSignatures))
@@ -317,6 +204,128 @@ async function getTrafficInfo(locationSignature1, locationSignature2) {
     return messages;
 }
 
+async function getData(from, direction) {
+    var response = await sendAPIRequest(getNextTrainQuery(from, direction))
+    data = JSON.parse(response)
+
+    var trains = [];
+    var canceledTrains = [];
+    if (data.RESPONSE && data.RESPONSE.RESULT && data.RESPONSE.RESULT[0]) {
+        trains = data.RESPONSE.RESULT[0].TrainAnnouncement || [];
+        trains.forEach(train => {
+            //Deviations
+            train.Deviations = [];
+            train.ReplacedByBus = false;
+            train.TrackChanged = false;
+    
+            //Deviations and ReplacedByBus
+            if ("Deviation" in train) {
+                train.Deviation.forEach(deviation => {
+                    if (deviation.Code == "ANA007") {
+                        train.ReplacedByBus = true;
+                        train.Deviations.push("Ersättningsbuss");
+                    } else {
+                        train.Deviations.push(deviation.Description);
+                    }
+
+                    if (deviation.Code == "ANA055") {
+                        train.TrackChanged = true;
+                    }
+                });
+            }
+    
+    
+            //ExpectedDepartureTime
+            // use estimated time if available and planned otherwise
+            if ("EstimatedTimeAtLocation" in train) {
+                train.ExpectedDepartureTime = new Date(train.EstimatedTimeAtLocation)
+            } else {
+                train.ExpectedDepartureTime = new Date(train.AdvertisedTimeAtLocation)
+            }
+    
+            //PlannedDepartureTime
+            train.PlannedDepartureTime = new Date(train.AdvertisedTimeAtLocation)
+    
+            //Product
+            if (train.ProductInformation.length > 0) {
+                train.Product = train.ProductInformation[0].Description;
+            } else {
+                train.Product = "Tåg";
+            }
+    
+            //Delay
+            if ("EstimatedTimeAtLocation" in train && (!train.Canceled || train.ReplacedByBus)) {
+                train.Delay = (new Date(train.EstimatedTimeAtLocation) - new Date(train.AdvertisedTimeAtLocation)) / (1000*60);
+            } else if (train.Canceled || train.Deviations.includes("Invänta tid")) {
+                train.Delay = null;
+            } else {
+                train.Delay = 0;
+            }
+    
+            //Status
+            if (train.Canceled || (train.Deviations.includes("Invänta tid"))) {
+                train.Status = "Major deviation";
+            } else if (train.Delay > 15) {
+                train.Status = "Major deviation";
+            } else if (train.Delay > 0 || train.Deviations.length > 0) {
+                train.Status = "Minor deviation";
+            } else {
+                train.Status = "On time";
+            }
+        });
+    
+        // List cancelled trains only until planned departure
+        canceledTrains = [];
+        trains.forEach(train => {
+            if (train.Canceled && (train.PlannedDepartureTime - new Date() > 0)) {
+                canceledTrains.push(train.AdvertisedTrainIdent);
+            }
+        });
+    
+        // Keep only trains that are not cancelled or replaced by bus
+        trains = trains.filter(train => {
+            return !train.Canceled || (train.ReplacedByBus && (train.ExpectedDepartureTime - new Date() > 0));
+        });
+    
+        // sort by expected departure time
+        trains.sort((a, b) => a.ExpectedDepartureTime - b.ExpectedDepartureTime)
+    }
+
+    
+    var trafficInfo = [];
+    var nextTrain = null;
+    if (trains.length > 0) {
+        nextTrain = trains[0];
+        try {
+            let stationNames = await getStationNames([nextTrain.LocationSignature, nextTrain.ToLocation[0].LocationName]);
+            nextTrain.DepartureStation = stationNames[nextTrain.LocationSignature];
+            nextTrain.DestinationStation = stationNames[nextTrain.ToLocation[0].LocationName];
+        } catch (error) {
+            console.error("Error getting station names: " + error);
+        }
+
+        trafficInfo = [];
+
+        if (canceledTrains.length >= 2) {
+            canceledText = "Tåg " + canceledTrains.join(", ") + " inställda";
+            trafficInfo.push(canceledText);
+        } else if (canceledTrains.length == 1) {
+            trafficInfo.push("Tåg " + canceledTrains[0] + " inställt");
+        }
+    }
+
+    try {
+        trafficInfo = trafficInfo.concat(await getTrafficInfo(from, direction));
+    } catch (error) {
+        console.error("Error getting traffic info: " + error);
+    }
+
+    return {
+        nextTrain: nextTrain,
+        trafficInfo: trafficInfo
+    };
+}
+
 /*
  Widget code
 */
@@ -346,8 +355,8 @@ if (args.widgetParameter == null || args.widgetParameter == "") {
 
 var widget = null;
 try {
-  let nextTrain = await getNextTrain(from, direction);
-  widget = await createWidget(nextTrain)
+  let data = await getData(from, direction);
+  widget = await createWidget(data)
   // Check if the script is running in
   // a widget. If not, show a preview of
   // the widget to easier debug it.
@@ -368,11 +377,11 @@ try {
 Script.setWidget(widget)
 Script.complete()
 
-async function createWidget(train) {
+async function createWidget(data) {
   var alertColor = new Color("e00000");
   var textColor = Color.white();
 
-  if (train == null) {
+  if (data.nextTrain == null) {
     let w = new ListWidget()
     w.addText("Inga avgångar närmaste 3 timmar")
     w.refreshAfterDate = new Date(Date.now() + 90 * 60 * 1000); //90 minutes
@@ -381,7 +390,7 @@ async function createWidget(train) {
     // Traffic info
     try {
       if (!config.runsInAccessoryWidget || config.widgetFamily == "accessoryRectangular") {
-        let trafficInfoStr = (await getTrafficInfo(from, direction)).join(", ");
+        let trafficInfoStr = trafficInfo.join(", ");
 
         if (trafficInfoStr.length > 0) {
           let trafficInfoStack = w.addStack()
@@ -407,15 +416,15 @@ async function createWidget(train) {
   }
 
   let w = new ListWidget()
-  w.url = train.WebLink;
+  w.url = data.nextTrain.WebLink;
 
   //Set color according to status
   
-  if (train.Status == "Major deviation") {
+  if (data.nextTrain.Status == "Major deviation") {
     w.backgroundColor = new Color("e00000")
     textColor = new Color("#c0c0c0")
     alertColor = Color.white();
-  } else if (train.Status == "Minor deviation") {
+  } else if (data.nextTrain.Status == "Minor deviation") {
     w.backgroundColor = new Color("#004cb5")
   } else {
     w.backgroundColor = new Color("#00204C")
@@ -426,7 +435,7 @@ async function createWidget(train) {
 
   // Platform information
   if (!config.runsInAccessoryWidget) {
-    let platformStr = "Spår " + train.TrackAtLocation + ", " + train.DepartureStation;
+    let platformStr = "Spår " + data.nextTrain.TrackAtLocation + ", " + data.nextTrain.DepartureStation;
     let platformTxt = w.addText(platformStr)
     platformTxt.font = Font.mediumSystemFont(12)
     platformTxt.textColor = textColor;
@@ -435,36 +444,36 @@ async function createWidget(train) {
   w.addSpacer(6)
   // Time information
 
-  if (train.Delay == null) {
+  if (data.nextTrain.Delay == null) {
     let awaitTimeTxt = w.addText("Invänta tid")
     awaitTimeTxt.font = Font.boldSystemFont(16)
     awaitTimeTxt.textColor = alertColor;
-  } else if (train.ExpectedDepartureTime - new Date() < 1 * 60 * 1000) {
+  } else if (data.nextTrain.ExpectedDepartureTime - new Date() < 1 * 60 * 1000) {
     let departingTxt = w.addText("Avgår nu")
     departingTxt.font = Font.boldSystemFont(16)
     departingTxt.textColor = textColor;
-  } else if (train.ExpectedDepartureTime - new Date() < 60 * 60 * 1000) {
+  } else if (data.nextTrain.ExpectedDepartureTime - new Date() < 60 * 60 * 1000) {
     let timeStack = w.addStack()
-    let countdown = timeStack.addDate(train.ExpectedDepartureTime)
+    let countdown = timeStack.addDate(data.nextTrain.ExpectedDepartureTime)
     countdown.applyRelativeStyle();
     countdown.font = Font.boldSystemFont(16)
     countdown.textColor = textColor
   } else {
     let timeStack = w.addStack()
-    let countdown = timeStack.addDate(train.ExpectedDepartureTime)
+    let countdown = timeStack.addDate(data.nextTrain.ExpectedDepartureTime)
     countdown.applyTimeStyle();
     countdown.font = Font.boldSystemFont(16)
     countdown.textColor = textColor
   }
 
-  if ((!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular")) && train.Delay > 0) {
+  if ((!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular")) && data.nextTrain.Delay > 0) {
     let delayStack = w.addStack()
     let nytidTxt = delayStack.addText("Ny tid")
     nytidTxt.font = Font.mediumSystemFont(12)
     nytidTxt.textColor = textColor;
     nytidTxt.textOpacity = 0.9;
     delayStack.addSpacer(2)
-    let delayTime = delayStack.addDate(train.ExpectedDepartureTime)
+    let delayTime = delayStack.addDate(data.nextTrain.ExpectedDepartureTime)
     delayTime.applyTimeStyle();
     delayTime.font = Font.boldSystemFont(12)
     delayTime.textColor = alertColor;
@@ -472,7 +481,7 @@ async function createWidget(train) {
 
     if (["medium", "large", "extraLarge"].includes(config.widgetFamily)) {
       delayStack.addSpacer(4)
-      let delayText = delayStack.addText("(" + train.Delay + " min försenad)")
+      let delayText = delayStack.addText("(" + data.nextTrain.Delay + " min försenad)")
       delayText.font = Font.mediumSystemFont(12)
       delayText.textColor = textColor;
       delayText.textOpacity = 0.9;
@@ -481,12 +490,12 @@ async function createWidget(train) {
 
   w.addSpacer(6)
   // Tåginfo
-  if (!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular" && train.Deviations.length == 0)) {
+  if (!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular" && data.nextTrain.Deviations.length == 0)) {
 
     if (config.runsInAccessoryWidget) {
-      trainStr = "Tåg " + train.AdvertisedTrainIdent + " mot " + train.DestinationStation;
+      trainStr = "Tåg " + data.nextTrain.AdvertisedTrainIdent + " mot " + data.nextTrain.DestinationStation;
     } else {
-      trainStr = train.Product + " " + train.AdvertisedTrainIdent + " mot " + train.DestinationStation;
+      trainStr = data.nextTrain.Product + " " + data.nextTrain.AdvertisedTrainIdent + " mot " + data.nextTrain.DestinationStation;
     }
     
     let trainTxt = w.addText(trainStr)
@@ -497,7 +506,7 @@ async function createWidget(train) {
 
   w.addSpacer(4)
   // Deviations
-  if ((!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular")) && train.Deviations.length > 0) {
+  if ((!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular")) && data.nextTrain.Deviations.length > 0) {
     let deviationStack = w.addStack()
     let warningSymbol = SFSymbol.named("exclamationmark.triangle")
     warningSymbol.applyFont(Font.mediumSystemFont(14))
@@ -505,14 +514,14 @@ async function createWidget(train) {
     warningImg.imageSize = new Size(12, 12)
     warningImg.tintColor = alertColor
     deviationStack.addSpacer(4)
-    let deviationsTxt = deviationStack.addText(train.Deviations.join(", "))
+    let deviationsTxt = deviationStack.addText(data.nextTrain.Deviations.join(", "))
     deviationsTxt.font = Font.mediumSystemFont(12)
     deviationsTxt.textColor = alertColor;
     deviationsTxt.textOpacity = 0.9
   }
 
   // Traffic info
-  if ((!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular" && train.Deviations.length == 0)) && train.trafficInfo.length > 0) {
+  if ((!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular" && data.nextTrain.Deviations.length == 0)) && data.trafficInfo.length > 0) {
     let trafficInfoStack = w.addStack()
     let infoSymbol = SFSymbol.named("info.circle")
     infoSymbol.applyFont(Font.regularSystemFont(14))
@@ -520,7 +529,7 @@ async function createWidget(train) {
     infoImg.imageSize = new Size(12, 12)
     infoImg.tintColor = textColor;
     trafficInfoStack.addSpacer(4)
-    let trafficInfoTxt = trafficInfoStack.addText(train.trafficInfo.join(", "))
+    let trafficInfoTxt = trafficInfoStack.addText(data.trafficInfo.join(", "))
     trafficInfoTxt.font = Font.regularSystemFont(12)
     trafficInfoTxt.textColor = textColor;
     trafficInfoTxt.textOpacity = 1.0
@@ -531,16 +540,16 @@ async function createWidget(train) {
 
   // Set refresh rate
   var refreshInMinutes = 10; //default to 10 minutes
-  if (train.ExpectedDepartureTime - new Date() < 10 * 60 * 1000) {
+  if (data.nextTrain.ExpectedDepartureTime - new Date() < 10 * 60 * 1000) {
     //less than 10 minutes to next departure
     refreshInMinutes = 0.5;
-  } else if (train.Status != "On time") {
+  } else if (data.nextTrain.Status != "On time") {
     //not on time
     refreshInMinutes = 1;
-  } else if (train.ExpectedDepartureTime - new Date() < 30 * 60 * 1000) {
+  } else if (data.nextTrain.ExpectedDepartureTime - new Date() < 30 * 60 * 1000) {
     //less than 30 minutes to next departure
     refreshInMinutes = 3;
-  } else if (train.ExpectedDepartureTime - new Date() < 60 * 60 * 1000) {
+  } else if (data.nextTrain.ExpectedDepartureTime - new Date() < 60 * 60 * 1000) {
     //less than 1 hour to next departure
     refreshInMinutes = 6;
   }
