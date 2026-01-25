@@ -422,7 +422,7 @@ function getColor(name, theme = "") {
 
 function createErrorWidget(error) {
   let w = new ListWidget()
-  let errorTxt = widget.addText("Error getting next train: " + error)
+  let errorTxt = w.addText("Error getting next train: " + error)
   errorTxt.font = Font.mediumSystemFont(12)
   errorTxt.textColor = getColor("alert");
   errorTxt.textOpacity = 1.0
@@ -469,17 +469,42 @@ async function createWidget(data) {
   w.url = data.nextTrain.WebLink;
   w.backgroundColor = getColor("bg", data.status);
 
+
+  //Station name
+  if (!config.runsInAccessoryWidget && !(config.widgetFamily == "small" && data.nextTrain.Deviations.length > 0)) {
+    let stationStack = w.addStack()
+    stationStack.addSpacer();
+    var maxLength = config.widgetFamily == "accessoryRectangular" ? 15 : 30;
+    let stationTxt = stationStack.addText(shortenString(data.nextTrain.DepartureStation, maxLength))
+    stationTxt.font = Font.regularRoundedSystemFont(12);
+    stationTxt.textColor = getColor("fg", data.status);
+    stationTxt.textOpacity = 0.5;
+  }
+
   // Add spacer above content to center it vertically.
   w.addSpacer()
 
-  // Platform information
-  if (!config.runsInAccessoryWidget) {
-    let platformStr = "Spår " + data.nextTrain.TrackAtLocation + ", " + data.nextTrain.DepartureStation;
-    let platformTxt = w.addText(platformStr)
-    platformTxt.font = Font.mediumSystemFont(12)
-    platformTxt.textColor = getColor("fg", data.status);
-    platformTxt.textOpacity = 0.9;
+  // Tåginfo
+  let trainStack = w.addStack()
+  if (config.runsInAccessoryWidget) {
+
+    let trainSymbol = SFSymbol.named("tram.fill")
+    trainSymbol.applyFont(Font.mediumSystemFont(12))
+    let trainImg = trainStack.addImage(trainSymbol.image)
+    trainImg.imageSize = new Size(12, 12)
+    trainImg.tintColor = getColor("fg", data.status);
+  
+    trainStack.addSpacer(2);
+    trainStr = data.nextTrain.AdvertisedTrainIdent + " mot " + shortenString(data.nextTrain.DestinationStation, 14);
+  } else {
+    trainStr = data.nextTrain.Product + " " + data.nextTrain.AdvertisedTrainIdent + " mot " + data.nextTrain.DestinationStation;
   }
+  
+  let trainTxt = trainStack.addText(trainStr)
+  trainTxt.font = Font.mediumSystemFont(12)
+  trainTxt.textColor = getColor("fg", data.status);
+  trainTxt.textOpacity = 0.9;
+  
   w.addSpacer(6)
   // Time information
 
@@ -505,45 +530,61 @@ async function createWidget(data) {
     countdown.textColor = getColor("fg", data.status);
   }
 
-  if ((!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular")) && data.nextTrain.Delay > 0) {
-    let delayStack = w.addStack()
-    let nytidTxt = delayStack.addText("Ny tid")
-    nytidTxt.font = Font.mediumSystemFont(12)
-    nytidTxt.textColor = getColor("fg", data.status);
-    nytidTxt.textOpacity = 0.9;
-    delayStack.addSpacer(2)
-    let delayTime = delayStack.addDate(data.nextTrain.ExpectedDepartureTime)
-    delayTime.applyTimeStyle();
-    delayTime.font = Font.boldSystemFont(12)
-    delayTime.textColor = getColor("alert", data.status);
-    delayTime.textOpacity = 0.9;
+  w.addSpacer(4);
+  
+  // Departure details
+  if (!config.runsInAccessoryWidget) {
+    let departureStack = w.addStack()
+    let platformPrefixTxt = departureStack.addText("Spår ")
+    platformPrefixTxt.font = Font.mediumSystemFont(12)
+    platformPrefixTxt.textColor = getColor("fg", data.status);
+    platformPrefixTxt.textOpacity = 0.9;
+    
+    let trackColor = data.nextTrain.trackChanged ? getColor("alert", data.status) : getColor("fg", data.status);
+    let platformTrackTxt = departureStack.addText(data.nextTrain.TrackAtLocation)
+    platformTrackTxt.font = Font.mediumSystemFont(12)
+    platformTrackTxt.textColor = trackColor;
+    platformTrackTxt.textOpacity = 0.9;
 
-    if (["medium", "large", "extraLarge"].includes(config.widgetFamily)) {
-      delayStack.addSpacer(4)
-      let delayText = delayStack.addText("(" + data.nextTrain.Delay + " min försenad)")
-      delayText.font = Font.mediumSystemFont(12)
-      delayText.textColor = getColor("fg", data.status);
-      delayText.textOpacity = 0.9;
+    if (data.nextTrain.Delay > 0) {
+      let delayStack = w.addStack()
+      let nytidTxt = delayStack.addText(", ny tid")
+      nytidTxt.font = Font.mediumSystemFont(12)
+      nytidTxt.textColor = getColor("fg", data.status);
+      nytidTxt.textOpacity = 0.9;
+      delayStack.addSpacer(2)
+      let delayTime = delayStack.addDate(data.nextTrain.ExpectedDepartureTime)
+      delayTime.applyTimeStyle();
+      delayTime.font = Font.boldSystemFont(12)
+      delayTime.textColor = getColor("alert", data.status);
+      delayTime.textOpacity = 0.9;
+
+      if (["medium", "large", "extraLarge"].includes(config.widgetFamily)) {
+        delayStack.addSpacer(2)
+        let delayText = delayStack.addText("(" + data.nextTrain.Delay + " min försenad)")
+        delayText.font = Font.mediumSystemFont(12)
+        delayText.textColor = getColor("fg", data.status);
+        delayText.textOpacity = 0.9;
+      }
+    }
+
+  } else {
+    if (config.widgetFamily == "accessoryRectangular" && data.nextTrain.Delay > 0) {
+      let delayStack = w.addStack()
+      let nytidTxt = delayStack.addText("Ny tid")
+      nytidTxt.font = Font.mediumSystemFont(12)
+      nytidTxt.textColor = getColor("fg", data.status);
+      nytidTxt.textOpacity = 0.9;
+      delayStack.addSpacer(2)
+      let delayTime = delayStack.addDate(data.nextTrain.ExpectedDepartureTime)
+      delayTime.applyTimeStyle();
+      delayTime.font = Font.boldSystemFont(12)
+      delayTime.textColor = getColor("alert", data.status);
+      delayTime.textOpacity = 0.9;
     }
   }
 
   w.addSpacer(6)
-  // Tåginfo
-  if (!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular" && data.nextTrain.Deviations.length == 0)) {
-
-    if (config.runsInAccessoryWidget) {
-      trainStr = "Tåg " + data.nextTrain.AdvertisedTrainIdent + " mot " + data.nextTrain.DestinationStation;
-    } else {
-      trainStr = data.nextTrain.Product + " " + data.nextTrain.AdvertisedTrainIdent + " mot " + data.nextTrain.DestinationStation;
-    }
-    
-    let trainTxt = w.addText(trainStr)
-    trainTxt.font = Font.mediumSystemFont(12)
-    trainTxt.textColor = getColor("fg", data.status);
-    trainTxt.textOpacity = 0.9
-  }
-
-  w.addSpacer(4)
   // Deviations
   if ((!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular")) && data.nextTrain.Deviations.length > 0) {
     let deviationStack = w.addStack()
