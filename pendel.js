@@ -320,9 +320,15 @@ async function getData(from, direction) {
         console.error("Error getting traffic info: " + error);
     }
 
+    var status = "No departures";
+    if (nextTrain != null) {
+        status = nextTrain.Status;
+    }
+
     return {
         nextTrain: nextTrain,
-        trafficInfo: trafficInfo
+        trafficInfo: trafficInfo,
+        status: status
     };
 }
 
@@ -356,7 +362,11 @@ if (args.widgetParameter == null || args.widgetParameter == "") {
 var widget = null;
 try {
   let data = await getData(from, direction);
-  widget = await createWidget(data)
+  if (data.status == "No departures") {
+    widget = createNoDeparturesWidget(data);
+  } else {
+    widget = await createWidget(data);
+  }
   // Check if the script is running in
   // a widget. If not, show a preview of
   // the widget to easier debug it.
@@ -366,69 +376,98 @@ try {
   // Tell the system to show the widget.
 } catch (error) {
   console.error("Error getting next train: " + error);
-  widget = new ListWidget()
-  let errorTxt = widget.addText("Error getting next train: " + error)
-  errorTxt.font = Font.mediumSystemFont(12)
-  errorTxt.textColor = Color.red()
-  errorTxt.textOpacity = 1.0
-  widget.refreshAfterDate = new Date(Date.now() + 10 * 60 * 1000); //10 minutes
+  widget = createErrorWidget(error)
 }
 
 Script.setWidget(widget)
 Script.complete()
 
-async function createWidget(data) {
-  var alertColor = new Color("e00000");
-  var textColor = Color.white();
 
-  if (data.nextTrain == null) {
-    let w = new ListWidget()
-    w.addText("Inga avgångar närmaste 3 timmar")
-    w.refreshAfterDate = new Date(Date.now() + 90 * 60 * 1000); //90 minutes
-
-    w.addSpacer(6)
-    // Traffic info
-    try {
-      if (!config.runsInAccessoryWidget || config.widgetFamily == "accessoryRectangular") {
-        let trafficInfoStr = trafficInfo.join(", ");
-
-        if (trafficInfoStr.length > 0) {
-          let trafficInfoStack = w.addStack()
-          let infoSymbol = SFSymbol.named("info.circle")
-          infoSymbol.applyFont(Font.regularSystemFont(14))
-          let infoImg = trafficInfoStack.addImage(infoSymbol.image)
-          infoImg.imageSize = new Size(12, 12)
-          infoImg.tintColor = textColor;
-          trafficInfoStack.addSpacer(4)
-          let trafficInfoTxt = trafficInfoStack.addText(trafficInfoStr)
-          trafficInfoTxt.font = Font.regularSystemFont(12)
-          trafficInfoTxt.textColor = textColor;
-          trafficInfoTxt.textOpacity = 1.0
-          w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000); //15 minutes
-        }
-      }
-    } catch (error) {
-      console.error("Error getting traffic info: " + error);
+function getColor(name, theme = "") {
+  if (theme == "Major deviation") {
+    if (name == "bg") {
+      return new Color("e00000")
+    } else if (name == "fg") {
+      return new Color("#c0c0c0");
+    } else if (name == "alert") {
+      return Color.white();
     }
+  } else if (theme == "Minor deviation") {
+    if (name == "bg") {
+      return new Color("#004cb5");
+    } else if (name == "fg") {
+      return Color.white();
+    } else if (name == "alert") {
+      return new Color("e00000");
+    }
+  } else if (theme == "No departures") {
+    if (name == "bg") {
+      return new Color("#505050");
+    } else if (name == "fg") {
+      return Color.white();
+    } else if (name == "alert") {
+      return new Color("e00000");
+    }
+  } else {
+    if (name == "bg") {
+      return new Color("#00204C");
+    } else if (name == "fg") {
+      return Color.white();
+    } else if (name == "alert") {
+      return new Color("e00000");
+    }
+  }
+}
 
 
-    return w
+function createErrorWidget(error) {
+  let w = new ListWidget()
+  let errorTxt = widget.addText("Error getting next train: " + error)
+  errorTxt.font = Font.mediumSystemFont(12)
+  errorTxt.textColor = getColor("alert");
+  errorTxt.textOpacity = 1.0
+  w.refreshAfterDate = new Date(Date.now() + 10 * 60 * 1000); //10 minutes
+  return w
+}
+
+function createNoDeparturesWidget(data) {
+  let w = new ListWidget()
+  w.backgroundColor = getColor("bg", "No departures");
+  w.addText("Inga avgångar närmaste 3 timmar");
+  w.refreshAfterDate = new Date(Date.now() + 90 * 60 * 1000); //90 minutes
+
+  w.addSpacer(6)
+  // Traffic info
+  try {
+    if (!config.runsInAccessoryWidget || config.widgetFamily == "accessoryRectangular") {
+      let trafficInfoStr = data.trafficInfo.join(", ");
+
+      if (trafficInfoStr.length > 0) {
+        let trafficInfoStack = w.addStack()
+        let infoSymbol = SFSymbol.named("info.circle")
+        infoSymbol.applyFont(Font.regularSystemFont(14))
+        let infoImg = trafficInfoStack.addImage(infoSymbol.image)
+        infoImg.imageSize = new Size(12, 12)
+        infoImg.tintColor = getColor("fg", "No departures");
+        trafficInfoStack.addSpacer(4)
+        let trafficInfoTxt = trafficInfoStack.addText(trafficInfoStr)
+        trafficInfoTxt.font = Font.regularSystemFont(12)
+        trafficInfoTxt.textColor = getColor("fg", "No departures");
+        trafficInfoTxt.textOpacity = 1.0
+        w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000); //15 minutes
+      }
+    }
+  } catch (error) {
+    console.error("Error getting traffic info: " + error);
   }
 
+  return w
+}
+
+async function createWidget(data) {
   let w = new ListWidget()
   w.url = data.nextTrain.WebLink;
-
-  //Set color according to status
-  
-  if (data.nextTrain.Status == "Major deviation") {
-    w.backgroundColor = new Color("e00000")
-    textColor = new Color("#c0c0c0")
-    alertColor = Color.white();
-  } else if (data.nextTrain.Status == "Minor deviation") {
-    w.backgroundColor = new Color("#004cb5")
-  } else {
-    w.backgroundColor = new Color("#00204C")
-  }
+  w.backgroundColor = getColor("bg", data.status);
 
   // Add spacer above content to center it vertically.
   w.addSpacer()
@@ -438,7 +477,7 @@ async function createWidget(data) {
     let platformStr = "Spår " + data.nextTrain.TrackAtLocation + ", " + data.nextTrain.DepartureStation;
     let platformTxt = w.addText(platformStr)
     platformTxt.font = Font.mediumSystemFont(12)
-    platformTxt.textColor = textColor;
+    platformTxt.textColor = getColor("fg", data.status);
     platformTxt.textOpacity = 0.9;
   }
   w.addSpacer(6)
@@ -447,43 +486,43 @@ async function createWidget(data) {
   if (data.nextTrain.Delay == null) {
     let awaitTimeTxt = w.addText("Invänta tid")
     awaitTimeTxt.font = Font.boldSystemFont(16)
-    awaitTimeTxt.textColor = alertColor;
+    awaitTimeTxt.textColor = getColor("alert", data.status);
   } else if (data.nextTrain.ExpectedDepartureTime - new Date() < 1 * 60 * 1000) {
     let departingTxt = w.addText("Avgår nu")
     departingTxt.font = Font.boldSystemFont(16)
-    departingTxt.textColor = textColor;
+    departingTxt.textColor = getColor("fg", data.status);
   } else if (data.nextTrain.ExpectedDepartureTime - new Date() < 60 * 60 * 1000) {
     let timeStack = w.addStack()
     let countdown = timeStack.addDate(data.nextTrain.ExpectedDepartureTime)
     countdown.applyRelativeStyle();
     countdown.font = Font.boldSystemFont(16)
-    countdown.textColor = textColor
+    countdown.textColor = getColor("fg", data.status);
   } else {
     let timeStack = w.addStack()
     let countdown = timeStack.addDate(data.nextTrain.ExpectedDepartureTime)
     countdown.applyTimeStyle();
     countdown.font = Font.boldSystemFont(16)
-    countdown.textColor = textColor
+    countdown.textColor = getColor("fg", data.status);
   }
 
   if ((!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular")) && data.nextTrain.Delay > 0) {
     let delayStack = w.addStack()
     let nytidTxt = delayStack.addText("Ny tid")
     nytidTxt.font = Font.mediumSystemFont(12)
-    nytidTxt.textColor = textColor;
+    nytidTxt.textColor = getColor("fg", data.status);
     nytidTxt.textOpacity = 0.9;
     delayStack.addSpacer(2)
     let delayTime = delayStack.addDate(data.nextTrain.ExpectedDepartureTime)
     delayTime.applyTimeStyle();
     delayTime.font = Font.boldSystemFont(12)
-    delayTime.textColor = alertColor;
+    delayTime.textColor = getColor("alert", data.status);
     delayTime.textOpacity = 0.9;
 
     if (["medium", "large", "extraLarge"].includes(config.widgetFamily)) {
       delayStack.addSpacer(4)
       let delayText = delayStack.addText("(" + data.nextTrain.Delay + " min försenad)")
       delayText.font = Font.mediumSystemFont(12)
-      delayText.textColor = textColor;
+      delayText.textColor = getColor("fg", data.status);
       delayText.textOpacity = 0.9;
     }
   }
@@ -500,7 +539,7 @@ async function createWidget(data) {
     
     let trainTxt = w.addText(trainStr)
     trainTxt.font = Font.mediumSystemFont(12)
-    trainTxt.textColor = textColor;
+    trainTxt.textColor = getColor("fg", data.status);
     trainTxt.textOpacity = 0.9
   }
 
@@ -512,11 +551,11 @@ async function createWidget(data) {
     warningSymbol.applyFont(Font.mediumSystemFont(14))
     let warningImg = deviationStack.addImage(warningSymbol.image)
     warningImg.imageSize = new Size(12, 12)
-    warningImg.tintColor = alertColor
+    warningImg.tintColor = getColor("alert", data.status);
     deviationStack.addSpacer(4)
     let deviationsTxt = deviationStack.addText(data.nextTrain.Deviations.join(", "))
     deviationsTxt.font = Font.mediumSystemFont(12)
-    deviationsTxt.textColor = alertColor;
+    deviationsTxt.textColor = getColor("alert", data.status);
     deviationsTxt.textOpacity = 0.9
   }
 
@@ -527,11 +566,11 @@ async function createWidget(data) {
     infoSymbol.applyFont(Font.regularSystemFont(14))
     let infoImg = trafficInfoStack.addImage(infoSymbol.image)
     infoImg.imageSize = new Size(12, 12)
-    infoImg.tintColor = textColor;
+    infoImg.tintColor = getColor("fg", data.status);
     trafficInfoStack.addSpacer(4)
     let trafficInfoTxt = trafficInfoStack.addText(data.trafficInfo.join(", "))
     trafficInfoTxt.font = Font.regularSystemFont(12)
-    trafficInfoTxt.textColor = textColor;
+    trafficInfoTxt.textColor = getColor("fg", data.status);
     trafficInfoTxt.textOpacity = 1.0
   }
   

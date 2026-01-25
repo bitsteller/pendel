@@ -313,8 +313,14 @@ async function getData(from, direction) {
         console.error("Error getting traffic info: " + error);
     }
 
+    var status = "No departures";
+    if (nextTrain != null) {
+        status = nextTrain.Status;
+    }
+
     return {
         nextTrain: nextTrain,
-        trafficInfo: trafficInfo
+        trafficInfo: trafficInfo,
+        status: status
     };
 }
