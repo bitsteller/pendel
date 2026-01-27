@@ -388,7 +388,7 @@ function getColor(name, theme = "") {
     if (name == "bg") {
       return new Color("e00000")
     } else if (name == "fg") {
-      return new Color("#c0c0c0");
+      return new Color("#d0d0d0");
     } else if (name == "alert") {
       return Color.white();
     }
@@ -531,7 +531,7 @@ async function createWidget(data) {
   }
 
   w.addSpacer(4);
-  
+
   // Departure details
   if (!config.runsInAccessoryWidget) {
     let departureStack = w.addStack()
@@ -540,28 +540,27 @@ async function createWidget(data) {
     platformPrefixTxt.textColor = getColor("fg", data.status);
     platformPrefixTxt.textOpacity = 0.9;
     
-    let trackColor = data.nextTrain.trackChanged ? getColor("alert", data.status) : getColor("fg", data.status);
+    let trackColor = data.nextTrain.TrackChanged ? getColor("alert", data.status) : getColor("fg", data.status);
     let platformTrackTxt = departureStack.addText(data.nextTrain.TrackAtLocation)
     platformTrackTxt.font = Font.mediumSystemFont(12)
     platformTrackTxt.textColor = trackColor;
     platformTrackTxt.textOpacity = 0.9;
 
     if (data.nextTrain.Delay > 0) {
-      let delayStack = w.addStack()
-      let nytidTxt = delayStack.addText(", ny tid")
+      let nytidTxt = departureStack.addText(", ny tid")
       nytidTxt.font = Font.mediumSystemFont(12)
       nytidTxt.textColor = getColor("fg", data.status);
       nytidTxt.textOpacity = 0.9;
-      delayStack.addSpacer(2)
-      let delayTime = delayStack.addDate(data.nextTrain.ExpectedDepartureTime)
+      departureStack.addSpacer(2)
+      let delayTime = departureStack.addDate(data.nextTrain.ExpectedDepartureTime)
       delayTime.applyTimeStyle();
       delayTime.font = Font.boldSystemFont(12)
       delayTime.textColor = getColor("alert", data.status);
       delayTime.textOpacity = 0.9;
 
       if (["medium", "large", "extraLarge"].includes(config.widgetFamily)) {
-        delayStack.addSpacer(2)
-        let delayText = delayStack.addText("(" + data.nextTrain.Delay + " min försenad)")
+        departureStack.addSpacer(2)
+        let delayText = departureStack.addText("(" + data.nextTrain.Delay + " min försenad)")
         delayText.font = Font.mediumSystemFont(12)
         delayText.textColor = getColor("fg", data.status);
         delayText.textOpacity = 0.9;
