@@ -180,7 +180,7 @@ async function getTrafficInfo(locationSignature1, locationSignature2) {
         data.RESPONSE.RESULT[0].OperativeEvent.forEach(event => {
             event.TrafficImpact.forEach(impact => {
                 if (impact.PublicMessage.Header) {
-                    messages.push(shortenString(impact.PublicMessage.Header, 25));
+                    messages.push(impact.PublicMessage.Header);
                 }
             });
         });

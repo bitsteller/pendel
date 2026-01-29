@@ -1,6 +1,4 @@
 // This script shows the next train from the selected location in a widget on your Home screen.
-var from = "Nr";
-var direction = "Nk";
 
 /*
 trv.js
@@ -187,7 +185,7 @@ async function getTrafficInfo(locationSignature1, locationSignature2) {
         data.RESPONSE.RESULT[0].OperativeEvent.forEach(event => {
             event.TrafficImpact.forEach(impact => {
                 if (impact.PublicMessage.Header) {
-                    messages.push(shortenString(impact.PublicMessage.Header, 25));
+                    messages.push(impact.PublicMessage.Header);
                 }
             });
         });
@@ -539,19 +537,17 @@ async function createWidget(data) {
     platformPrefixTxt.font = Font.mediumSystemFont(12)
     platformPrefixTxt.textColor = getColor("fg", data.status);
     platformPrefixTxt.textOpacity = 0.9;
-    
-    let trackColor = data.nextTrain.TrackChanged ? getColor("alert", data.status) : getColor("fg", data.status);
+
     let platformTrackTxt = departureStack.addText(data.nextTrain.TrackAtLocation)
-    platformTrackTxt.font = Font.mediumSystemFont(12)
-    platformTrackTxt.textColor = trackColor;
+    platformTrackTxt.font = data.nextTrain.TrackChanged ? Font.boldSystemFont(12) : Font.mediumSystemFont(12);
+    platformTrackTxt.textColor = data.nextTrain.TrackChanged ? getColor("alert", data.status) : getColor("fg", data.status);
     platformTrackTxt.textOpacity = 0.9;
 
     if (data.nextTrain.Delay > 0) {
-      let nytidTxt = departureStack.addText(", ny tid")
+      let nytidTxt = departureStack.addText(", ny tid ")
       nytidTxt.font = Font.mediumSystemFont(12)
       nytidTxt.textColor = getColor("fg", data.status);
       nytidTxt.textOpacity = 0.9;
-      departureStack.addSpacer(2)
       let delayTime = departureStack.addDate(data.nextTrain.ExpectedDepartureTime)
       delayTime.applyTimeStyle();
       delayTime.font = Font.boldSystemFont(12)
@@ -559,8 +555,7 @@ async function createWidget(data) {
       delayTime.textOpacity = 0.9;
 
       if (["medium", "large", "extraLarge"].includes(config.widgetFamily)) {
-        departureStack.addSpacer(2)
-        let delayText = departureStack.addText("(" + data.nextTrain.Delay + " min försenad)")
+        let delayText = departureStack.addText(" (" + data.nextTrain.Delay + " min försenad)")
         delayText.font = Font.mediumSystemFont(12)
         delayText.textColor = getColor("fg", data.status);
         delayText.textOpacity = 0.9;
@@ -608,7 +603,17 @@ async function createWidget(data) {
     infoImg.imageSize = new Size(12, 12)
     infoImg.tintColor = getColor("fg", data.status);
     trafficInfoStack.addSpacer(4)
-    let trafficInfoTxt = trafficInfoStack.addText(data.trafficInfo.join(", "))
+
+    //cases
+    var maxLength = 30;
+    if (config.runsInAccessoryWidget) {
+      maxLength = 25;
+    } else if (["medium", "large", "extraLarge"].includes(config.widgetFamily)) {
+      maxLength = 70;
+    }
+    maxLength = Math.max(maxLength/data.trafficInfo.length, 10);
+
+    let trafficInfoTxt = trafficInfoStack.addText(data.trafficInfo.map(message => shortenString(message, maxLength)).join(", "))
     trafficInfoTxt.font = Font.regularSystemFont(12)
     trafficInfoTxt.textColor = getColor("fg", data.status);
     trafficInfoTxt.textOpacity = 1.0
