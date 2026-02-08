@@ -197,7 +197,7 @@ async function getTrafficInfo(locationSignature1, locationSignature2) {
     return messages;
 }
 
-async function getData(from, direction) {
+async function getData(from, direction, includeNextNextTrain = false) {
     var response = await sendAPIRequest(getNextTrainQuery(from, direction))
     data = JSON.parse(response)
 
@@ -285,7 +285,6 @@ async function getData(from, direction) {
     }
 
     
-    var trafficInfo = [];
     var nextTrain = null;
     if (trains.length > 0) {
         nextTrain = trains[0];
@@ -296,15 +295,28 @@ async function getData(from, direction) {
         } catch (error) {
             console.error("Error getting station names: " + error);
         }
+    }
 
-        trafficInfo = [];
-
-        if (canceledTrains.length >= 2) {
-            canceledText = "Tåg " + canceledTrains.join(", ") + " inställda";
-            trafficInfo.push(canceledText);
-        } else if (canceledTrains.length == 1) {
-            trafficInfo.push("Tåg " + canceledTrains[0] + " inställt");
+    var nextNextTrain = null;
+    if (trains.length > 1) {
+        nextNextTrain = trains[1];
+        try {
+            let stationNames = await getStationNames([nextNextTrain.LocationSignature, nextNextTrain.ToLocation[0].LocationName]);
+            nextNextTrain.DepartureStation = stationNames[nextNextTrain.LocationSignature];
+            nextNextTrain.DestinationStation = stationNames[nextNextTrain.ToLocation[0].LocationName];
+        } catch (error) {
+            console.error("Error getting station names: " + error);
         }
+    }
+
+    // Traffic info
+    trafficInfo = [];
+
+    if (canceledTrains.length >= 2) {
+        canceledText = "Tåg " + canceledTrains.join(", ") + " inställda";
+        trafficInfo.push(canceledText);
+    } else if (canceledTrains.length == 1) {
+        trafficInfo.push("Tåg " + canceledTrains[0] + " inställt");
     }
 
     try {
@@ -320,6 +332,7 @@ async function getData(from, direction) {
 
     return {
         nextTrain: nextTrain,
+        nextNextTrain: nextNextTrain,
         trafficInfo: trafficInfo,
         status: status
     };

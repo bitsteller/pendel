@@ -160,7 +160,7 @@
             resultDiv.innerHTML = '<span class="loading">Loading...</span>'
             
             try {
-                const data = await getData(from, direction)
+                const data = await getData(from, direction, true)
                 resultDiv.innerHTML = '<strong>Success!</strong>\n\n' + JSON.stringify(data, null, 2)
             } catch (error) {
                 resultDiv.innerHTML = '<span class="error"><strong>Error:</strong> ' + error.message + '</span>'
