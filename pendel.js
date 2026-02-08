@@ -351,10 +351,14 @@ async function getData(from, direction, includeNextNextTrain = false) {
 //Parse parameters from widget
 var from = "Nk";
 var direction = "Nr";
+var onlyTrafficInfo = false;
 try {
   let params = args.widgetParameter.split(",");
   from = params[0].trim();
   direction = params[1].trim();
+  if (params.length > 2) {
+    onlyTrafficInfo = params[2].trim() == "1";
+  }
 } catch (error) {
   console.error("Error parsing parameters: " + error);
 }
@@ -372,12 +376,7 @@ if (args.widgetParameter == null || args.widgetParameter == "") {
 
 var widget = null;
 try {
-  let data = await getData(from, direction, ["large", "extraLarge"].includes(config.widgetFamily));
-  if (data.status == "No departures") {
-    widget = createNoDeparturesWidget(data);
-  } else {
-    widget = await createWidget(data);
-  }
+  widget = await createWidget(from, direction, onlyTrafficInfo)
   // Check if the script is running in
   // a widget. If not, show a preview of
   // the widget to easier debug it.
@@ -430,6 +429,20 @@ function getColor(name, theme = "") {
   }
 }
 
+async function createWidget(from, direction, onlyTrafficInfo = false) {
+  let data = await getData(from, direction, ["large", "extraLarge"].includes(config.widgetFamily));
+  if (onlyTrafficInfo) {
+    widget = createTrafficInfoWidget(data);
+  } else {
+    if (data.status == "No departures") {
+      widget = createNoDeparturesWidget(data);
+    } else {
+      widget = await createNextTrainWidget(data);
+    }
+  }
+  return widget;
+}
+
 
 function createErrorWidget(error) {
   let w = new ListWidget()
@@ -475,7 +488,53 @@ function createNoDeparturesWidget(data) {
   return w
 }
 
-async function createWidget(data) {
+function createTrafficInfoWidget(data) {
+  let w = new ListWidget()
+
+  if (data.trafficInfo.length > 0) {
+    w.backgroundColor = getColor("bg", "Minor deviation");
+    let trafficInfoTxt = w.addText("Störningar i tågtrafiken");
+    trafficInfoTxt.font = Font.regularSystemFont(12)
+    trafficInfoTxt.textColor = getColor("fg", "Minor deviation");
+    trafficInfoTxt.textOpacity = 1.0
+    w.refreshAfterDate = new Date(Date.now() + 30 * 60 * 1000); //60 minutes
+  } else {
+    w.backgroundColor = getColor("bg");
+    let trafficInfoTxt = w.addText("Inga störningar i tågtrafiken");
+    trafficInfoTxt.font = Font.regularSystemFont(12)
+    trafficInfoTxt.textColor = getColor("fg");
+    trafficInfoTxt.textOpacity = 1.0
+    w.refreshAfterDate = new Date(Date.now() + 60 * 60 * 1000); //60 minutes
+  }
+  w.addSpacer(6)
+  // Traffic info
+  try {
+    if (!config.runsInAccessoryWidget || config.widgetFamily == "accessoryRectangular") {
+      let trafficInfoStr = data.trafficInfo.join(", ");
+
+      if (trafficInfoStr.length > 0) {
+        let trafficInfoStack = w.addStack()
+        let infoSymbol = SFSymbol.named("info.circle")
+        infoSymbol.applyFont(Font.regularSystemFont(14))
+        let infoImg = trafficInfoStack.addImage(infoSymbol.image)
+        infoImg.imageSize = new Size(12, 12)
+        infoImg.tintColor = getColor("fg", "No departures");
+        trafficInfoStack.addSpacer(4)
+        let trafficInfoTxt = trafficInfoStack.addText(trafficInfoStr)
+        trafficInfoTxt.font = Font.regularSystemFont(12)
+        trafficInfoTxt.textColor = getColor("fg", "No departures");
+        trafficInfoTxt.textOpacity = 1.0
+        w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000); //15 minutes
+      }
+    }
+  } catch (error) {
+    console.error("Error getting traffic info: " + error);
+  }
+
+  return w
+}
+
+async function createNextTrainWidget(data) {
   let w = new ListWidget()
   w.url = data.nextTrain.WebLink;
   w.backgroundColor = getColor("bg", data.status);
