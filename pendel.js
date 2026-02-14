@@ -493,14 +493,23 @@ function createTrafficInfoWidget(data) {
 
   if (data.trafficInfo.length > 0) {
     w.backgroundColor = getColor("bg", "Minor deviation");
-    let trafficInfoTxt = w.addText("Störningar i tågtrafiken");
-    trafficInfoTxt.font = Font.regularSystemFont(12)
+    let trafficInfoTxt = w.addText("Störningar");
+    trafficInfoTxt.font = Font.boldSystemFont(12)
     trafficInfoTxt.textColor = getColor("fg", "Minor deviation");
     trafficInfoTxt.textOpacity = 1.0
     w.refreshAfterDate = new Date(Date.now() + 30 * 60 * 1000); //60 minutes
   } else {
     w.backgroundColor = getColor("bg");
-    let trafficInfoTxt = w.addText("Inga störningar i tågtrafiken");
+    //add icon
+    let trafficInfoStack = w.addStack()
+    let trafficInfoSymbol = SFSymbol.named("hand.thumbsup")
+    trafficInfoSymbol.applyFont(Font.regularSystemFont(14))
+    let trafficInfoImg = trafficInfoStack.addImage(trafficInfoSymbol.image)
+    trafficInfoImg.imageSize = new Size(12, 12)
+    trafficInfoImg.tintColor = getColor("fg", "Minor deviation")
+    trafficInfoStack.addSpacer(2);
+
+    let trafficInfoTxt = trafficInfoStack.addText("Normal trafik");
     trafficInfoTxt.font = Font.regularSystemFont(12)
     trafficInfoTxt.textColor = getColor("fg");
     trafficInfoTxt.textOpacity = 1.0
