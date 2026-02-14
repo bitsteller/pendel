@@ -665,7 +665,7 @@ function addTrainInfo(w, train, status) {
     let departureStack = w.addStack()
     let platformPrefixTxt = departureStack.addText("Spår ")
     platformPrefixTxt.font = Font.mediumSystemFont(12)
-    platformPrefixTxt.textColor = getColor("fg", data.status);
+    platformPrefixTxt.textColor = getColor("fg", status);
     platformPrefixTxt.textOpacity = 0.9;
 
     let platformTrackTxt = departureStack.addText(train.TrackAtLocation)
@@ -676,18 +676,18 @@ function addTrainInfo(w, train, status) {
     if (train.Delay > 0) {
       let nytidTxt = departureStack.addText(", ny tid ")
       nytidTxt.font = Font.mediumSystemFont(12)
-      nytidTxt.textColor = getColor("fg", data.status);
+      nytidTxt.textColor = getColor("fg", status);
       nytidTxt.textOpacity = 0.9;
       let delayTime = departureStack.addDate(train.ExpectedDepartureTime)
       delayTime.applyTimeStyle();
       delayTime.font = Font.boldSystemFont(12)
-      delayTime.textColor = getColor("alert", data.status);
+      delayTime.textColor = getColor("alert", status);
       delayTime.textOpacity = 0.9;
 
       if (["medium", "large", "extraLarge"].includes(config.widgetFamily)) {
         let delayText = departureStack.addText(" (" + train.Delay + " min försenad)")
         delayText.font = Font.mediumSystemFont(12)
-        delayText.textColor = getColor("fg", data.status);
+        delayText.textColor = getColor("fg", status);
         delayText.textOpacity = 0.9;
       }
     }
