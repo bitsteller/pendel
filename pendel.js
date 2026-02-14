@@ -363,7 +363,7 @@ try {
   console.error("Error parsing parameters: " + error);
 }
 
-if (args.widgetParameter == null || args.widgetParameter == "") {
+if (typeof args === "undefined" || args.widgetParameter == null || args.widgetParameter == "") {
   //DEBUG: from Nr to Nk if clock is between 0:00 and 12:00 and from Nk to Nr if clock is between 12:00 and 24:00
   if (new Date().getHours() >= 0 && new Date().getHours() < 12) {
     from = "Nr";
@@ -396,7 +396,7 @@ Script.complete()
 function getColor(name, theme = "") {
   if (theme == "Major deviation") {
     if (name == "bg") {
-      return new Color("e00000")
+      return new Color("#e00000");
     } else if (name == "fg") {
       return new Color("#d0d0d0");
     } else if (name == "alert") {
@@ -408,7 +408,7 @@ function getColor(name, theme = "") {
     } else if (name == "fg") {
       return Color.white();
     } else if (name == "alert") {
-      return new Color("e00000");
+      return new Color("#e00000");
     }
   } else if (theme == "No departures") {
     if (name == "bg") {
@@ -416,7 +416,7 @@ function getColor(name, theme = "") {
     } else if (name == "fg") {
       return Color.white();
     } else if (name == "alert") {
-      return new Color("e00000");
+      return new Color("#e00000");
     }
   } else {
     if (name == "bg") {
@@ -424,23 +424,25 @@ function getColor(name, theme = "") {
     } else if (name == "fg") {
       return Color.white();
     } else if (name == "alert") {
-      return new Color("e00000");
+      return new Color("#e00000");
     }
   }
+  return Color.white();
 }
 
 async function createWidget(from, direction, onlyTrafficInfo = false) {
   let data = await getData(from, direction, ["large", "extraLarge"].includes(config.widgetFamily));
+  let w;
   if (onlyTrafficInfo) {
-    widget = createTrafficInfoWidget(data);
+    w = createTrafficInfoWidget(data.trafficInfo);
   } else {
     if (data.status == "No departures") {
-      widget = createNoDeparturesWidget(data);
+      w = createNoDeparturesWidget(data);
     } else {
-      widget = await createNextTrainWidget(data);
+      w = await createNextTrainWidget(data);
     }
   }
-  return widget;
+  return w;
 }
 
 
@@ -488,10 +490,10 @@ function createNoDeparturesWidget(data) {
   return w
 }
 
-function createTrafficInfoWidget(data) {
+function createTrafficInfoWidget(trafficInfo) {
   let w = new ListWidget()
 
-  if (data.trafficInfo.length > 0) {
+  if (trafficInfo.length > 0) {
     w.backgroundColor = getColor("bg", "Minor deviation");
     let trafficInfoTxt = w.addText("Störningar");
     trafficInfoTxt.font = Font.boldSystemFont(12)
@@ -507,7 +509,7 @@ function createTrafficInfoWidget(data) {
     let trafficInfoImg = trafficInfoStack.addImage(trafficInfoSymbol.image)
     trafficInfoImg.imageSize = new Size(12, 12)
     trafficInfoImg.tintColor = getColor("fg", "Minor deviation")
-    trafficInfoStack.addSpacer(2);
+    trafficInfoStack.addSpacer(3);
 
     let trafficInfoTxt = trafficInfoStack.addText("Normal trafik");
     trafficInfoTxt.font = Font.regularSystemFont(12)
@@ -519,7 +521,7 @@ function createTrafficInfoWidget(data) {
   // Traffic info
   try {
     if (!config.runsInAccessoryWidget || config.widgetFamily == "accessoryRectangular") {
-      let trafficInfoStr = data.trafficInfo.join(", ");
+      let trafficInfoStr = trafficInfo.join(", ");
 
       if (trafficInfoStr.length > 0) {
         let trafficInfoStack = w.addStack()
@@ -632,11 +634,11 @@ function addTrainInfo(w, train, status) {
     trainImg.tintColor = getColor("fg", status);
   
     trainStack.addSpacer(2);
-    trainStr = train.AdvertisedTrainIdent + " mot " + shortenString(train.DestinationStation, 14);
+    var trainStr = train.AdvertisedTrainIdent + " mot " + shortenString(train.DestinationStation || "", 14);
   } else {
-    trainStr = train.Product + " " + train.AdvertisedTrainIdent + " mot " + train.DestinationStation;
+    var trainStr = train.Product + " " + train.AdvertisedTrainIdent + " mot " + (train.DestinationStation || "");
   }
-  
+
   let trainTxt = trainStack.addText(trainStr)
   trainTxt.font = config.runsInAccessoryWidget ? Font.mediumSystemFont(10) : Font.mediumSystemFont(12);
   trainTxt.textColor = getColor("fg", status);
