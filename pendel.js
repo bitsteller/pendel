@@ -469,17 +469,7 @@ function createNoDeparturesWidget(data) {
       let trafficInfoStr = data.trafficInfo.join(", ");
 
       if (trafficInfoStr.length > 0) {
-        let trafficInfoStack = w.addStack()
-        let infoSymbol = SFSymbol.named("info.circle")
-        infoSymbol.applyFont(Font.regularSystemFont(14))
-        let infoImg = trafficInfoStack.addImage(infoSymbol.image)
-        infoImg.imageSize = new Size(12, 12)
-        infoImg.tintColor = getColor("fg", "No departures");
-        trafficInfoStack.addSpacer(4)
-        let trafficInfoTxt = trafficInfoStack.addText(trafficInfoStr)
-        trafficInfoTxt.font = Font.regularSystemFont(12)
-        trafficInfoTxt.textColor = getColor("fg", "No departures");
-        trafficInfoTxt.textOpacity = 1.0
+        addTrafficInfo(w, data.trafficInfo, "No departures", 3);
         w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000); //15 minutes
       }
     }
@@ -492,12 +482,14 @@ function createNoDeparturesWidget(data) {
 
 function createTrafficInfoWidget(trafficInfo) {
   let w = new ListWidget()
+  var status = "";
 
   if (trafficInfo.length > 0) {
+    status = "Minor deviation";
     w.backgroundColor = getColor("bg", "Minor deviation");
     let trafficInfoTxt = w.addText("Störningar");
     trafficInfoTxt.font = Font.boldSystemFont(12)
-    trafficInfoTxt.textColor = getColor("fg", "Minor deviation");
+    trafficInfoTxt.textColor = getColor("fg", status);
     trafficInfoTxt.textOpacity = 1.0
     w.refreshAfterDate = new Date(Date.now() + 30 * 60 * 1000); //60 minutes
   } else {
@@ -508,12 +500,12 @@ function createTrafficInfoWidget(trafficInfo) {
     trafficInfoSymbol.applyFont(Font.regularSystemFont(14))
     let trafficInfoImg = trafficInfoStack.addImage(trafficInfoSymbol.image)
     trafficInfoImg.imageSize = new Size(12, 12)
-    trafficInfoImg.tintColor = getColor("fg", "Minor deviation")
+    trafficInfoImg.tintColor = getColor("fg", status)
     trafficInfoStack.addSpacer(3);
 
     let trafficInfoTxt = trafficInfoStack.addText("Normal trafik");
     trafficInfoTxt.font = Font.regularSystemFont(12)
-    trafficInfoTxt.textColor = getColor("fg");
+    trafficInfoTxt.textColor = getColor("fg", status);
     trafficInfoTxt.textOpacity = 1.0
     w.refreshAfterDate = new Date(Date.now() + 60 * 60 * 1000); //60 minutes
   }
@@ -524,17 +516,7 @@ function createTrafficInfoWidget(trafficInfo) {
       let trafficInfoStr = trafficInfo.join(", ");
 
       if (trafficInfoStr.length > 0) {
-        let trafficInfoStack = w.addStack()
-        let infoSymbol = SFSymbol.named("info.circle")
-        infoSymbol.applyFont(Font.regularSystemFont(14))
-        let infoImg = trafficInfoStack.addImage(infoSymbol.image)
-        infoImg.imageSize = new Size(12, 12)
-        infoImg.tintColor = getColor("fg", "No departures");
-        trafficInfoStack.addSpacer(4)
-        let trafficInfoTxt = trafficInfoStack.addText(trafficInfoStr)
-        trafficInfoTxt.font = Font.regularSystemFont(12)
-        trafficInfoTxt.textColor = getColor("fg", "No departures");
-        trafficInfoTxt.textOpacity = 1.0
+        addTrafficInfo(w, trafficInfo, status, 3);
         w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000); //15 minutes
       }
     }
@@ -574,27 +556,7 @@ async function createNextTrainWidget(data) {
 
   // Traffic info
   if ((!config.runsInAccessoryWidget || (config.widgetFamily == "accessoryRectangular" && data.nextTrain.Deviations.length == 0)) && data.trafficInfo.length > 0) {
-    let trafficInfoStack = w.addStack()
-    let infoSymbol = SFSymbol.named("info.circle")
-    infoSymbol.applyFont(Font.regularSystemFont(14))
-    let infoImg = trafficInfoStack.addImage(infoSymbol.image)
-    infoImg.imageSize = new Size(12, 12)
-    infoImg.tintColor = getColor("fg", data.status);
-    trafficInfoStack.addSpacer(4)
-
-    //cases
-    var maxLength = 30;
-    if (config.runsInAccessoryWidget) {
-      maxLength = 25;
-    } else if (["medium", "large", "extraLarge"].includes(config.widgetFamily)) {
-      maxLength = 70;
-    }
-    maxLength = Math.max(maxLength/data.trafficInfo.length, 10);
-
-    let trafficInfoTxt = trafficInfoStack.addText(data.trafficInfo.map(message => shortenString(message, maxLength)).join(", "))
-    trafficInfoTxt.font = Font.regularSystemFont(12)
-    trafficInfoTxt.textColor = getColor("fg", data.status);
-    trafficInfoTxt.textOpacity = 1.0
+    addTrafficInfo(w, data.trafficInfo, data.status);
   }
   
   // Add spacing below content to center it vertically.
@@ -735,4 +697,28 @@ function addTrainInfo(w, train, status) {
     deviationsTxt.textOpacity = 0.9
   }
 
+}
+
+function addTrafficInfo(w, trafficInfo, status, approxRows = 1) {
+  let trafficInfoStack = w.addStack()
+  let infoSymbol = SFSymbol.named("info.circle")
+  infoSymbol.applyFont(Font.regularSystemFont(14))
+  let infoImg = trafficInfoStack.addImage(infoSymbol.image)
+  infoImg.imageSize = new Size(12, 12)
+  infoImg.tintColor = getColor("fg", status);
+  trafficInfoStack.addSpacer(4)
+
+  //cases
+  var maxLength = 30;
+  if (config.runsInAccessoryWidget) {
+    maxLength = 25;
+  } else if (["medium", "large", "extraLarge"].includes(config.widgetFamily)) {
+    maxLength = 70;
+  }
+  maxLength = approxRows * Math.max(maxLength/trafficInfo.length, 10);
+
+  let trafficInfoTxt = trafficInfoStack.addText(trafficInfo.map(message => shortenString(message, maxLength)).join(", "))
+  trafficInfoTxt.font = Font.regularSystemFont(12)
+  trafficInfoTxt.textColor = getColor("fg", status);
+  trafficInfoTxt.textOpacity = 1.0
 }
