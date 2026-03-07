@@ -245,7 +245,7 @@ async function getData(from, direction, includeNextNextTrain = false) {
             train.PlannedDepartureTime = new Date(train.AdvertisedTimeAtLocation)
     
             //Product
-            if (train.ProductInformation.length > 0) {
+            if (train.ProductInformation && train.ProductInformation.length > 0) {
                 train.Product = train.ProductInformation[0].Description;
             } else {
                 train.Product = "Tåg";
@@ -448,7 +448,7 @@ async function createWidget(from, direction, onlyTrafficInfo = false) {
 
 function createErrorWidget(error) {
   let w = new ListWidget()
-  let errorTxt = w.addText("Error getting next train: " + error)
+  let errorTxt = w.addText(error)
   errorTxt.font = Font.mediumSystemFont(12)
   errorTxt.textColor = getColor("alert");
   errorTxt.textOpacity = 1.0
