@@ -70,21 +70,25 @@ function getNextTrainQuery(from, direction) {
         <QUERY objecttype="TrainAnnouncement" schemaversion="1.9">
             <FILTER>
                 <AND>
-                <NOT>
+                <NOT> <!-- Ignore trains that have already departed -->
                     <EXISTS name="TimeAtLocation" value="true" />
                 </NOT>
-                <OR>
-                  <GT name="AdvertisedTimeAtLocation" value="$dateadd(-1:00:00)" />
-                  <ELEMENTMATCH>
-                    <EQ name="Deviation.Code" value="ANA007" /> <!--buss ersätter-->
-                  </ELEMENTMATCH>
-                </OR>
+                <GT name="AdvertisedTimeAtLocation" value="$dateadd(-3:00:00)" />
                 <OR>
                     <LT name="AdvertisedTimeAtLocation" value="$dateadd(3:00:00)" />
                     <LT name="EstimatedTimeAtLocation" value="$dateadd(3:00:00)" />
-                    <ELEMENTMATCH>
-                    <EQ name="Deviation.Code" value="ANA088" /> <!--invänta tid-->
-                    </ELEMENTMATCH>
+                    <AND>
+                        <ELEMENTMATCH>
+                            <EQ name="Deviation.Code" value="ANA088" /> <!--invänta tid-->
+                        </ELEMENTMATCH>
+                        <GT name="AdvertisedTimeAtLocation" value="$dateadd(-1:00:00)" />
+                    </AND>
+                    <AND>
+                        <ELEMENTMATCH>
+                            <EQ name="Deviation.Code" value="ANA007" /> <!--buss ersätter-->
+                        </ELEMENTMATCH>
+                        <GT name="AdvertisedTimeAtLocation" value="$dateadd(-0:05:00)" />
+                    </AND>
                 </OR>
                 <EQ name="LocationSignature" value="${from}" />
                 <EQ name="ActivityType" value="Avgang" />
@@ -240,7 +244,7 @@ async function getData(from, direction, includeNextNextTrain = false) {
             train.PlannedDepartureTime = new Date(train.AdvertisedTimeAtLocation)
     
             //Product
-            if (train.ProductInformation.length > 0) {
+            if (train.ProductInformation && train.ProductInformation.length > 0) {
                 train.Product = train.ProductInformation[0].Description;
             } else {
                 train.Product = "Tåg";
