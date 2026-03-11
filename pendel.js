@@ -79,9 +79,10 @@ function getNextTrainQuery(from, direction) {
                     <EXISTS name="TimeAtLocation" value="true" />
                 </NOT>
                 <GT name="AdvertisedTimeAtLocation" value="$dateadd(-3:00:00)" />
+                <LT name="AdvertisedTimeAtLocation" value="$dateadd(3:00:00)" />
                 <OR>
-                    <LT name="AdvertisedTimeAtLocation" value="$dateadd(3:00:00)" />
-                    <LT name="EstimatedTimeAtLocation" value="$dateadd(3:00:00)" />
+                    <GT name="AdvertisedTimeAtLocation" value="$dateadd(0:00:00)" />
+                    <GT name="EstimatedTimeAtLocation" value="$dateadd(0:00:00)" />
                     <AND>
                         <ELEMENTMATCH>
                             <EQ name="Deviation.Code" value="ANA088" /> <!--invänta tid-->
