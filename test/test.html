@@ -42,7 +42,7 @@
             background-color: #ccc;
             cursor: not-allowed;
         }
-        #result, #stationNamesResult, #trafficInfoResult {
+        #result, #stationNamesResult, #trafficInfoResult, #scheduleResult {
             margin-top: 20px;
             padding: 15px;
             border: 1px solid #ddd;
@@ -109,6 +109,26 @@
 
     <div id="trafficInfoResult"></div>
 
+    <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
+
+    <h2>Test schedule param &amp; plan selection</h2>
+
+    <div class="form-group">
+        <label for="scheduleParam">Schedule parameter string:</label>
+        <input type="text" id="scheduleParam" placeholder="e.g. Mån-Fre,7-9,Nr,Lp;Lör,6:30-9,Lp,Nr or Lp,Nr" value="Mån-Fre,7-9,Nr,Lp;Lör,6:30-9,Lp,Nr" style="font-family: monospace;">
+    </div>
+
+    <div class="form-group">
+        <label for="scheduleDate">Optional date override (ISO string or leave empty for now):</label>
+        <input type="text" id="scheduleDate" placeholder="e.g. 2025-03-11T08:00:00" value="">
+    </div>
+
+    <button id="testScheduleBtn" onclick="testScheduleParam()">Test parseScheduleParam</button>
+    <button id="testActivePlanBtn" onclick="testActivePlan()">Test getActivePlan</button>
+    <button id="testNextPlanBtn" onclick="testNextPlan()">Test getNextPlan</button>
+
+    <div id="scheduleResult"></div>
+
     <!-- Polyfill for Scriptable Request API -->
     <script>
         // Polyfill for Scriptable Request API to work in browser
@@ -139,8 +159,8 @@
         }
     </script>
 
-    <!-- Import trv.js -->
-    <script src="trv.js"></script>
+    <!-- Import lib.js -->
+    <script src="lib.js"></script>
 
     <!-- Test function -->
     <script>
@@ -219,6 +239,78 @@
             try {
                 const data = await getTrafficInfo(loc1, loc2)
                 resultDiv.innerHTML = '<strong>Success!</strong>\n\n' + JSON.stringify(data, null, 2)
+            } catch (error) {
+                resultDiv.innerHTML = '<span class="error"><strong>Error:</strong> ' + error.message + '</span>'
+                console.error('Error:', error)
+            } finally {
+                testBtn.disabled = false
+            }
+        }
+
+        function getScheduleDate() {
+            const raw = document.getElementById('scheduleDate').value.trim()
+            if (!raw) return null
+            const d = new Date(raw)
+            return isNaN(d.getTime()) ? null : d
+        }
+
+        function testScheduleParam() {
+            const param = document.getElementById('scheduleParam').value.trim()
+            const resultDiv = document.getElementById('scheduleResult')
+            const testBtn = document.getElementById('testScheduleBtn')
+            testBtn.disabled = true
+            resultDiv.innerHTML = '<span class="loading">Running...</span>'
+            try {
+                const plans = parseScheduleParam(param)
+                resultDiv.innerHTML = '<strong>parseScheduleParam result:</strong>\n\n' + (plans === null ? 'null' : JSON.stringify(plans, null, 2))
+            } catch (error) {
+                resultDiv.innerHTML = '<span class="error"><strong>Error:</strong> ' + error.message + '</span>'
+                console.error('Error:', error)
+            } finally {
+                testBtn.disabled = false
+            }
+        }
+
+        function testActivePlan() {
+            const param = document.getElementById('scheduleParam').value.trim()
+            const resultDiv = document.getElementById('scheduleResult')
+            const testBtn = document.getElementById('testActivePlanBtn')
+            const date = getScheduleDate()
+            testBtn.disabled = true
+            resultDiv.innerHTML = '<span class="loading">Running...</span>'
+            try {
+                const plans = parseScheduleParam(param)
+                if (plans === null) {
+                    resultDiv.innerHTML = '<span class="error">No plans (param has no semicolon or invalid). Use a schedule string like Mån-Fre,7-9,Nr,Lp;Lör,6:30-9,Lp,Nr</span>'
+                    return
+                }
+                const active = getActivePlan(plans, date)
+                const usedDate = date || new Date()
+                resultDiv.innerHTML = '<strong>getActivePlan result</strong> (date: ' + usedDate.toISOString() + '):\n\n' + (active === null ? 'null' : JSON.stringify(active, null, 2))
+            } catch (error) {
+                resultDiv.innerHTML = '<span class="error"><strong>Error:</strong> ' + error.message + '</span>'
+                console.error('Error:', error)
+            } finally {
+                testBtn.disabled = false
+            }
+        }
+
+        function testNextPlan() {
+            const param = document.getElementById('scheduleParam').value.trim()
+            const resultDiv = document.getElementById('scheduleResult')
+            const testBtn = document.getElementById('testNextPlanBtn')
+            const date = getScheduleDate()
+            testBtn.disabled = true
+            resultDiv.innerHTML = '<span class="loading">Running...</span>'
+            try {
+                const plans = parseScheduleParam(param)
+                if (plans === null) {
+                    resultDiv.innerHTML = '<span class="error">No plans (param has no semicolon or invalid). Use a schedule string.</span>'
+                    return
+                }
+                const next = getNextPlan(plans, date)
+                const usedDate = date || new Date()
+                resultDiv.innerHTML = '<strong>getNextPlan result</strong> (date: ' + usedDate.toISOString() + '):\n\n' + (next === null ? 'null' : JSON.stringify({ plan: next.plan, activeAt: next.activeAt.toISOString() }, null, 2))
             } catch (error) {
                 resultDiv.innerHTML = '<span class="error"><strong>Error:</strong> ' + error.message + '</span>'
                 console.error('Error:', error)

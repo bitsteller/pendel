@@ -158,6 +158,135 @@ function getTrafficInfoQuery(locationSignature1, locationSignature2) {
     return query
 }
 
+// Schedule param parsing (widget parametrization)
+// Swedish weekday abbreviations -> JS getDay() (0=Sun .. 6=Sat)
+var DAY_ABBREV_TO_NUM = { "Sön": 0, "Mån": 1, "Tis": 2, "Ons": 3, "Tor": 4, "Fre": 5, "Lör": 6 };
+
+function parseTimePart(str) {
+    if (typeof str !== "string" || !str.trim()) return null;
+    str = str.trim();
+    var parts = str.split(":");
+    var hour = parseInt(parts[0], 10);
+    if (isNaN(hour) || hour < 0 || hour > 23) return null;
+    var minute = 0;
+    if (parts.length >= 2) {
+        minute = parseInt(parts[1], 10);
+        if (isNaN(minute) || minute < 0 || minute > 59) return null;
+    }
+    return hour * 60 + minute;
+}
+
+function parseDayPart(str) {
+    if (typeof str !== "string" || !str.trim()) return null;
+    str = str.trim();
+    var dash = str.indexOf("-");
+    if (dash === -1) {
+        var day = DAY_ABBREV_TO_NUM[str];
+        if (day === undefined) return null;
+        return { type: "single", day: day };
+    }
+    var startStr = str.substring(0, dash).trim();
+    var endStr = str.substring(dash + 1).trim();
+    var start = DAY_ABBREV_TO_NUM[startStr];
+    var end = DAY_ABBREV_TO_NUM[endStr];
+    if (start === undefined || end === undefined) return null;
+    return { type: "range", start: start, end: end };
+}
+
+function isWeekdayInSpec(dayNum, daySpec) {
+    if (daySpec.type === "single") return dayNum === daySpec.day;
+    var s = daySpec.start;
+    var e = daySpec.end;
+    if (s <= e) return dayNum >= s && dayNum <= e;
+    return dayNum >= s || dayNum <= e;
+}
+
+function parsePlan(planStr) {
+    if (typeof planStr !== "string" || !planStr.trim()) return null;
+    var parts = planStr.split(",").map(function (p) { return p.trim(); });
+    if (parts.length === 2) {
+        var from = parts[0];
+        var direction = parts[1];
+        if (!from || !direction) return null;
+        return { from: from, direction: direction, alwaysActive: true };
+    }
+    if (parts.length !== 4) return null;
+    var daySpec = parseDayPart(parts[0]);
+    if (daySpec === null) return null;
+    var timeSpec = parts[1];
+    var from = parts[2];
+    var direction = parts[3];
+    if (!from || !direction || !timeSpec) return null;
+    var timeParts = timeSpec.split("-").map(function (p) { return p.trim(); });
+    if (timeParts.length !== 2) return null;
+    var startMinutes = parseTimePart(timeParts[0]);
+    var endMinutes = parseTimePart(timeParts[1]);
+    if (startMinutes === null || endMinutes === null) return null;
+    return {
+        daySpec: daySpec,
+        timeSpec: timeSpec,
+        from: from,
+        direction: direction,
+        startMinutes: startMinutes,
+        endMinutes: endMinutes,
+        alwaysActive: false
+    };
+}
+
+function parseScheduleParam(paramString) {
+    if (paramString == null || typeof paramString !== "string") return null;
+    if (paramString.indexOf(";") === -1) return null;
+    var segments = paramString.split(";").map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 0; });
+    var plans = [];
+    for (var i = 0; i < segments.length; i++) {
+        var plan = parsePlan(segments[i]);
+        if (plan !== null) plans.push(plan);
+    }
+    return plans.length > 0 ? plans : null;
+}
+
+function isPlanActiveNow(plan, date) {
+    if (date == null) date = new Date();
+    if (plan.alwaysActive === true) return true;
+    var dayNum = date.getDay();
+    if (!isWeekdayInSpec(dayNum, plan.daySpec)) return false;
+    var minutes = date.getHours() * 60 + date.getMinutes();
+    return minutes >= plan.startMinutes && minutes < plan.endMinutes;
+}
+
+function getActivePlan(plans, date) {
+    if (date == null) date = new Date();
+    for (var i = 0; i < plans.length; i++) {
+        if (isPlanActiveNow(plans[i], date)) return plans[i];
+    }
+    return null;
+}
+
+function getNextPlan(plans, date) {
+    if (date == null) date = new Date();
+    var scheduledPlans = plans.filter(function (p) { return p.alwaysActive === false; });
+    if (scheduledPlans.length === 0) return null;
+    var now = date.getTime();
+    var bestAt = null;
+    var bestPlan = null;
+    for (var p = 0; p < scheduledPlans.length; p++) {
+        var plan = scheduledPlans[p];
+        for (var dayOffset = 0; dayOffset <= 7; dayOffset++) {
+            var candidate = new Date(date);
+            candidate.setDate(candidate.getDate() + dayOffset);
+            candidate.setHours(Math.floor(plan.startMinutes / 60), plan.startMinutes % 60, 0, 0);
+            var dayNum = candidate.getDay();
+            if (!isWeekdayInSpec(dayNum, plan.daySpec)) continue;
+            var candidateTime = candidate.getTime();
+            if (candidateTime > now && (bestAt === null || candidateTime < bestAt)) {
+                bestAt = candidateTime;
+                bestPlan = plan;
+            }
+        }
+    }
+    if (bestPlan === null || bestAt === null) return null;
+    return { plan: bestPlan, activeAt: new Date(bestAt) };
+}
 
 async function getStationNames(locationSignatures) {
     var response = await sendAPIRequest(getStationNamesQuery(locationSignatures))

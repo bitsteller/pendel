@@ -1,7 +1,7 @@
 // This script shows the next train from the selected location in a widget on your Home screen.
 
 /*
-trv.js
+lib.js
 */
 var apiKey = 'c195e88db6424433beaca217c7a0aa24'
 var url = 'https://api.trafikinfo.trafikverket.se/v2/data.json'
@@ -348,27 +348,167 @@ async function getData(from, direction, includeNextNextTrain = false) {
     };
 }
 
+// Schedule param parsing (widget parametrization)
+var DAY_ABBREV_TO_NUM = { "Sön": 0, "Mån": 1, "Tis": 2, "Ons": 3, "Tor": 4, "Fre": 5, "Lör": 6 };
+
+function parseTimePart(str) {
+    if (typeof str !== "string" || !str.trim()) return null;
+    str = str.trim();
+    var parts = str.split(":");
+    var hour = parseInt(parts[0], 10);
+    if (isNaN(hour) || hour < 0 || hour > 23) return null;
+    var minute = 0;
+    if (parts.length >= 2) {
+        minute = parseInt(parts[1], 10);
+        if (isNaN(minute) || minute < 0 || minute > 59) return null;
+    }
+    return hour * 60 + minute;
+}
+
+function parseDayPart(str) {
+    if (typeof str !== "string" || !str.trim()) return null;
+    str = str.trim();
+    var dash = str.indexOf("-");
+    if (dash === -1) {
+        var day = DAY_ABBREV_TO_NUM[str];
+        if (day === undefined) return null;
+        return { type: "single", day: day };
+    }
+    var startStr = str.substring(0, dash).trim();
+    var endStr = str.substring(dash + 1).trim();
+    var start = DAY_ABBREV_TO_NUM[startStr];
+    var end = DAY_ABBREV_TO_NUM[endStr];
+    if (start === undefined || end === undefined) return null;
+    return { type: "range", start: start, end: end };
+}
+
+function isWeekdayInSpec(dayNum, daySpec) {
+    if (daySpec.type === "single") return dayNum === daySpec.day;
+    var s = daySpec.start;
+    var e = daySpec.end;
+    if (s <= e) return dayNum >= s && dayNum <= e;
+    return dayNum >= s || dayNum <= e;
+}
+
+function parsePlan(planStr) {
+    if (typeof planStr !== "string" || !planStr.trim()) return null;
+    var parts = planStr.split(",").map(function (p) { return p.trim(); });
+    if (parts.length === 2) {
+        var from = parts[0];
+        var direction = parts[1];
+        if (!from || !direction) return null;
+        return { from: from, direction: direction, alwaysActive: true };
+    }
+    if (parts.length !== 4) return null;
+    var daySpec = parseDayPart(parts[0]);
+    if (daySpec === null) return null;
+    var timeSpec = parts[1];
+    var from = parts[2];
+    var direction = parts[3];
+    if (!from || !direction || !timeSpec) return null;
+    var timeParts = timeSpec.split("-").map(function (p) { return p.trim(); });
+    if (timeParts.length !== 2) return null;
+    var startMinutes = parseTimePart(timeParts[0]);
+    var endMinutes = parseTimePart(timeParts[1]);
+    if (startMinutes === null || endMinutes === null) return null;
+    return {
+        daySpec: daySpec,
+        timeSpec: timeSpec,
+        from: from,
+        direction: direction,
+        startMinutes: startMinutes,
+        endMinutes: endMinutes,
+        alwaysActive: false
+    };
+}
+
+function parseScheduleParam(paramString) {
+    if (paramString == null || typeof paramString !== "string") return null;
+    if (paramString.indexOf(";") === -1) return null;
+    var segments = paramString.split(";").map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 0; });
+    var plans = [];
+    for (var i = 0; i < segments.length; i++) {
+        var plan = parsePlan(segments[i]);
+        if (plan !== null) plans.push(plan);
+    }
+    return plans.length > 0 ? plans : null;
+}
+
+function isPlanActiveNow(plan, date) {
+    if (date == null) date = new Date();
+    if (plan.alwaysActive === true) return true;
+    var dayNum = date.getDay();
+    if (!isWeekdayInSpec(dayNum, plan.daySpec)) return false;
+    var minutes = date.getHours() * 60 + date.getMinutes();
+    return minutes >= plan.startMinutes && minutes < plan.endMinutes;
+}
+
+function getActivePlan(plans, date) {
+    if (date == null) date = new Date();
+    for (var i = 0; i < plans.length; i++) {
+        if (isPlanActiveNow(plans[i], date)) return plans[i];
+    }
+    return null;
+}
+
+function getNextPlan(plans, date) {
+    if (date == null) date = new Date();
+    var scheduledPlans = plans.filter(function (p) { return p.alwaysActive === false; });
+    if (scheduledPlans.length === 0) return null;
+    var now = date.getTime();
+    var bestAt = null;
+    var bestPlan = null;
+    for (var p = 0; p < scheduledPlans.length; p++) {
+        var plan = scheduledPlans[p];
+        for (var dayOffset = 0; dayOffset <= 7; dayOffset++) {
+            var candidate = new Date(date);
+            candidate.setDate(candidate.getDate() + dayOffset);
+            candidate.setHours(Math.floor(plan.startMinutes / 60), plan.startMinutes % 60, 0, 0);
+            var dayNum = candidate.getDay();
+            if (!isWeekdayInSpec(dayNum, plan.daySpec)) continue;
+            var candidateTime = candidate.getTime();
+            if (candidateTime > now && (bestAt === null || candidateTime < bestAt)) {
+                bestAt = candidateTime;
+                bestPlan = plan;
+            }
+        }
+    }
+    if (bestPlan === null || bestAt === null) return null;
+    return { plan: bestPlan, activeAt: new Date(bestAt) };
+}
+
 /*
  Widget code
 */
-
 
 //Parse parameters from widget
 var from = "Nk";
 var direction = "Nr";
 var onlyTrafficInfo = false;
-try {
-  let params = args.widgetParameter.split(",");
-  from = params[0].trim();
-  direction = params[1].trim();
-  if (params.length > 2) {
-    onlyTrafficInfo = params[2].trim() == "1";
+var useSchedule = false;
+var plans = [];
+
+if (typeof args !== "undefined" && args.widgetParameter != null && args.widgetParameter !== "") {
+  var param = args.widgetParameter;
+  if (param.indexOf(";") !== -1) {
+    plans = parseScheduleParam(param) || [];
+    if (plans.length > 0) useSchedule = true;
   }
-} catch (error) {
-  console.error("Error parsing parameters: " + error);
+  if (!useSchedule && param.indexOf(";") === -1) {
+    try {
+      var params = param.split(",");
+      from = params[0].trim();
+      direction = params[1].trim();
+      if (params.length > 2) {
+        onlyTrafficInfo = params[2].trim() == "1";
+      }
+    } catch (error) {
+      console.error("Error parsing parameters: " + error);
+    }
+  }
 }
 
-if (typeof args === "undefined" || args.widgetParameter == null || args.widgetParameter == "") {
+if (!useSchedule && (typeof args === "undefined" || args.widgetParameter == null || args.widgetParameter == "")) {
   //DEBUG: from Nr to Nk if clock is between 0:00 and 12:00 and from Nk to Nr if clock is between 12:00 and 24:00
   if (new Date().getHours() >= 0 && new Date().getHours() < 12) {
     from = "Nr";
@@ -381,17 +521,36 @@ if (typeof args === "undefined" || args.widgetParameter == null || args.widgetPa
 
 var widget = null;
 try {
-  widget = await createWidget(from, direction, onlyTrafficInfo)
-  // Check if the script is running in
-  // a widget. If not, show a preview of
-  // the widget to easier debug it.
-  if (!config.runsInWidget) {
-    await widget.presentMedium()
+  if (useSchedule) {
+    var activePlan = getActivePlan(plans);
+    if (activePlan !== null) {
+      var data = await getData(activePlan.from, activePlan.direction, ["large", "extraLarge"].includes(config.widgetFamily));
+      if (data.nextTrain != null) {
+        widget = await createNextTrainWidget(data);
+      } else {
+        widget = createNoDeparturesWidget(data);
+      }
+    } else {
+      var next = getNextPlan(plans);
+      if (next !== null) {
+        var trafficInfo = await getTrafficInfo(next.plan.from, next.plan.direction);
+        widget = createTrafficInfoWidget(trafficInfo);
+        widget.refreshAfterDate = next.activeAt;
+      } else {
+        var fallbackPlan = plans[0];
+        var fallbackTraffic = fallbackPlan ? await getTrafficInfo(fallbackPlan.from, fallbackPlan.direction) : [];
+        widget = createTrafficInfoWidget(fallbackTraffic);
+      }
+    }
+  } else {
+    widget = await createWidget(from, direction, onlyTrafficInfo);
   }
-  // Tell the system to show the widget.
+  if (!config.runsInWidget) {
+    await widget.presentMedium();
+  }
 } catch (error) {
   console.error("Error getting next train: " + error);
-  widget = createErrorWidget(error)
+  widget = createErrorWidget(error);
 }
 
 Script.setWidget(widget)
