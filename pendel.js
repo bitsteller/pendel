@@ -623,7 +623,10 @@ function createErrorWidget(error) {
 function createNoDeparturesWidget(data) {
   let w = new ListWidget()
   w.backgroundColor = getColor("bg", "No departures");
-  w.addText("Inga avgångar närmaste 3 timmar");
+  let noDeparturesTxt = w.addText("Inga avgångar närmaste 3 timmar");
+  noDeparturesTxt.font = Font.regularSystemFont(14)
+  noDeparturesTxt.textColor = getColor("fg", "No departures");
+  noDeparturesTxt.textOpacity = 1.0
   w.refreshAfterDate = new Date(Date.now() + 90 * 60 * 1000); //90 minutes
 
   w.addSpacer(6)
