@@ -612,7 +612,8 @@ async function createWidget(from, direction, onlyTrafficInfo = false) {
 
 function createErrorWidget(error) {
   let w = new ListWidget()
-  let errorTxt = w.addText(error)
+  let errorMessage = error instanceof Error ? error.message : String(error);
+  let errorTxt = w.addText(errorMessage)
   errorTxt.font = Font.mediumSystemFont(12)
   errorTxt.textColor = getColor("alert");
   errorTxt.textOpacity = 1.0
