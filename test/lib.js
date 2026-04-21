@@ -374,7 +374,7 @@ async function getData(from, direction, includeNextNextTrain = false) {
             train.PlannedDepartureTime = new Date(train.AdvertisedTimeAtLocation)
     
             //Product
-            if (train.ProductInformation && train.ProductInformation.length > 0) {
+            if (Array.isArray(train.ProductInformation) && train.ProductInformation.length > 0) {
                 train.Product = train.ProductInformation[0].Description;
             } else {
                 train.Product = "Tåg";
