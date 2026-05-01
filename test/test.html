@@ -111,7 +111,7 @@
 
     <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
 
-    <h2>Test schedule param &amp; plan selection</h2>
+    <h2>Test schedule param &amp; route selection</h2>
 
     <div class="form-group">
         <label for="scheduleParam">Schedule parameter string:</label>
@@ -124,8 +124,8 @@
     </div>
 
     <button id="testScheduleBtn" onclick="testScheduleParam()">Test parseScheduleParam</button>
-    <button id="testActivePlanBtn" onclick="testActivePlan()">Test getActivePlan</button>
-    <button id="testNextPlanBtn" onclick="testNextPlan()">Test getNextPlan</button>
+    <button id="testActiveRouteBtn" onclick="testActiveRoute()">Test getActiveRoute</button>
+    <button id="testNextRouteBtn" onclick="testNextRoute()">Test getNextRoute</button>
 
     <div id="scheduleResult"></div>
 
@@ -261,8 +261,8 @@
             testBtn.disabled = true
             resultDiv.innerHTML = '<span class="loading">Running...</span>'
             try {
-                const plans = parseScheduleParam(param)
-                resultDiv.innerHTML = '<strong>parseScheduleParam result:</strong>\n\n' + (plans === null ? 'null' : JSON.stringify(plans, null, 2))
+                const routes = parseScheduleParam(param)
+                resultDiv.innerHTML = '<strong>parseScheduleParam result:</strong>\n\n' + (routes === null ? 'null' : JSON.stringify(routes, null, 2))
             } catch (error) {
                 resultDiv.innerHTML = '<span class="error"><strong>Error:</strong> ' + error.message + '</span>'
                 console.error('Error:', error)
@@ -271,22 +271,22 @@
             }
         }
 
-        function testActivePlan() {
+        function testActiveRoute() {
             const param = document.getElementById('scheduleParam').value.trim()
             const resultDiv = document.getElementById('scheduleResult')
-            const testBtn = document.getElementById('testActivePlanBtn')
+            const testBtn = document.getElementById('testActiveRouteBtn')
             const date = getScheduleDate()
             testBtn.disabled = true
             resultDiv.innerHTML = '<span class="loading">Running...</span>'
             try {
-                const plans = parseScheduleParam(param)
-                if (plans === null) {
-                    resultDiv.innerHTML = '<span class="error">No plans (param has no semicolon or invalid). Use a schedule string like Mån-Fre,7-9,Nr,Lp;Lör,6:30-9,Lp,Nr</span>'
+                const routes = parseScheduleParam(param)
+                if (routes === null) {
+                    resultDiv.innerHTML = '<span class="error">No routes (param has no semicolon or invalid). Use a schedule string like Mån-Fre,7-9,Nr,Lp;Lör,6:30-9,Lp,Nr</span>'
                     return
                 }
-                const active = getActivePlan(plans, date)
+                const active = getActiveRoute(routes, date)
                 const usedDate = date || new Date()
-                resultDiv.innerHTML = '<strong>getActivePlan result</strong> (date: ' + usedDate.toISOString() + '):\n\n' + (active === null ? 'null' : JSON.stringify(active, null, 2))
+                resultDiv.innerHTML = '<strong>getActiveRoute result</strong> (date: ' + usedDate.toISOString() + '):\n\n' + (active === null ? 'null' : JSON.stringify(active, null, 2))
             } catch (error) {
                 resultDiv.innerHTML = '<span class="error"><strong>Error:</strong> ' + error.message + '</span>'
                 console.error('Error:', error)
@@ -295,22 +295,22 @@
             }
         }
 
-        function testNextPlan() {
+        function testNextRoute() {
             const param = document.getElementById('scheduleParam').value.trim()
             const resultDiv = document.getElementById('scheduleResult')
-            const testBtn = document.getElementById('testNextPlanBtn')
+            const testBtn = document.getElementById('testNextRouteBtn')
             const date = getScheduleDate()
             testBtn.disabled = true
             resultDiv.innerHTML = '<span class="loading">Running...</span>'
             try {
-                const plans = parseScheduleParam(param)
-                if (plans === null) {
-                    resultDiv.innerHTML = '<span class="error">No plans (param has no semicolon or invalid). Use a schedule string.</span>'
+                const routes = parseScheduleParam(param)
+                if (routes === null) {
+                    resultDiv.innerHTML = '<span class="error">No routes (param has no semicolon or invalid). Use a schedule string.</span>'
                     return
                 }
-                const next = getNextPlan(plans, date)
+                const next = getNextRoute(routes, date)
                 const usedDate = date || new Date()
-                resultDiv.innerHTML = '<strong>getNextPlan result</strong> (date: ' + usedDate.toISOString() + '):\n\n' + (next === null ? 'null' : JSON.stringify({ plan: next.plan, activeAt: next.activeAt.toISOString() }, null, 2))
+                resultDiv.innerHTML = '<strong>getNextRoute result</strong> (date: ' + usedDate.toISOString() + '):\n\n' + (next === null ? 'null' : JSON.stringify({ route: next.route, activeAt: next.activeAt.toISOString() }, null, 2))
             } catch (error) {
                 resultDiv.innerHTML = '<span class="error"><strong>Error:</strong> ' + error.message + '</span>'
                 console.error('Error:', error)

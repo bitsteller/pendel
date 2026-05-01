@@ -206,9 +206,9 @@ function isWeekdayInSpec(dayNum, daySpec) {
     return dayNum >= s || dayNum <= e;
 }
 
-function parsePlan(planStr) {
-    if (typeof planStr !== "string" || !planStr.trim()) return null;
-    var parts = planStr.split(",").map(function (p) { return p.trim(); });
+function parseRoute(routeStr) {
+    if (typeof routeStr !== "string" || !routeStr.trim()) return null;
+    var parts = routeStr.split(",").map(function (p) { return p.trim(); });
     if (parts.length === 2) {
         var from = parts[0];
         var direction = parts[1];
@@ -242,55 +242,55 @@ function parseScheduleParam(paramString) {
     if (paramString == null || typeof paramString !== "string") return null;
     if (paramString.indexOf(";") === -1) return null;
     var segments = paramString.split(";").map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 0; });
-    var plans = [];
+    var routes = [];
     for (var i = 0; i < segments.length; i++) {
-        var plan = parsePlan(segments[i]);
-        if (plan !== null) plans.push(plan);
+        var route = parseRoute(segments[i]);
+        if (route !== null) routes.push(route);
     }
-    return plans.length > 0 ? plans : null;
+    return routes.length > 0 ? routes : null;
 }
 
-function isPlanActiveNow(plan, date) {
+function isRouteActiveNow(route, date) {
     if (date == null) date = new Date();
-    if (plan.alwaysActive === true) return true;
+    if (route.alwaysActive === true) return true;
     var dayNum = date.getDay();
-    if (!isWeekdayInSpec(dayNum, plan.daySpec)) return false;
+    if (!isWeekdayInSpec(dayNum, route.daySpec)) return false;
     var minutes = date.getHours() * 60 + date.getMinutes();
-    return minutes >= plan.startMinutes && minutes < plan.endMinutes;
+    return minutes >= route.startMinutes && minutes < route.endMinutes;
 }
 
-function getActivePlan(plans, date) {
+function getActiveRoute(routes, date) {
     if (date == null) date = new Date();
-    for (var i = 0; i < plans.length; i++) {
-        if (isPlanActiveNow(plans[i], date)) return plans[i];
+    for (var i = 0; i < routes.length; i++) {
+        if (isRouteActiveNow(routes[i], date)) return routes[i];
     }
     return null;
 }
 
-function getNextPlan(plans, date) {
+function getNextRoute(routes, date) {
     if (date == null) date = new Date();
-    var scheduledPlans = plans.filter(function (p) { return p.alwaysActive === false; });
-    if (scheduledPlans.length === 0) return null;
+    var scheduledRoutes = routes.filter(function (r) { return r.alwaysActive === false; });
+    if (scheduledRoutes.length === 0) return null;
     var now = date.getTime();
     var bestAt = null;
-    var bestPlan = null;
-    for (var p = 0; p < scheduledPlans.length; p++) {
-        var plan = scheduledPlans[p];
+    var bestRoute = null;
+    for (var p = 0; p < scheduledRoutes.length; p++) {
+        var route = scheduledRoutes[p];
         for (var dayOffset = 0; dayOffset <= 7; dayOffset++) {
             var candidate = new Date(date);
             candidate.setDate(candidate.getDate() + dayOffset);
-            candidate.setHours(Math.floor(plan.startMinutes / 60), plan.startMinutes % 60, 0, 0);
+            candidate.setHours(Math.floor(route.startMinutes / 60), route.startMinutes % 60, 0, 0);
             var dayNum = candidate.getDay();
-            if (!isWeekdayInSpec(dayNum, plan.daySpec)) continue;
+            if (!isWeekdayInSpec(dayNum, route.daySpec)) continue;
             var candidateTime = candidate.getTime();
             if (candidateTime > now && (bestAt === null || candidateTime < bestAt)) {
                 bestAt = candidateTime;
-                bestPlan = plan;
+                bestRoute = route;
             }
         }
     }
-    if (bestPlan === null || bestAt === null) return null;
-    return { plan: bestPlan, activeAt: new Date(bestAt) };
+    if (bestRoute === null || bestAt === null) return null;
+    return { route: bestRoute, activeAt: new Date(bestAt) };
 }
 
 async function getStationNames(locationSignatures) {
@@ -486,13 +486,13 @@ var from = "Nk";
 var direction = "Nr";
 var onlyTrafficInfo = false;
 var useSchedule = false;
-var plans = [];
+var routes = [];
 
 if (typeof args !== "undefined" && args.widgetParameter != null && args.widgetParameter !== "") {
   var param = args.widgetParameter;
   if (param.indexOf(";") !== -1) {
-    plans = parseScheduleParam(param) || [];
-    if (plans.length > 0) useSchedule = true;
+    routes = parseScheduleParam(param) || [];
+    if (routes.length > 0) useSchedule = true;
   }
   if (!useSchedule && param.indexOf(";") === -1) {
     try {
@@ -522,23 +522,23 @@ if (!useSchedule && (typeof args === "undefined" || args.widgetParameter == null
 var widget = null;
 try {
   if (useSchedule) {
-    var activePlan = getActivePlan(plans);
-    if (activePlan !== null) {
-      var data = await getData(activePlan.from, activePlan.direction, ["large", "extraLarge"].includes(config.widgetFamily));
+    var activeRoute = getActiveRoute(routes);
+    if (activeRoute !== null) {
+      var data = await getData(activeRoute.from, activeRoute.direction, ["large", "extraLarge"].includes(config.widgetFamily));
       if (data.nextTrain != null) {
         widget = await createNextTrainWidget(data);
       } else {
         widget = createNoDeparturesWidget(data);
       }
     } else {
-      var next = getNextPlan(plans);
+      var next = getNextRoute(routes);
       if (next !== null) {
-        var trafficInfo = await getTrafficInfo(next.plan.from, next.plan.direction);
+        var trafficInfo = await getTrafficInfo(next.route.from, next.route.direction);
         widget = createTrafficInfoWidget(trafficInfo);
         widget.refreshAfterDate = next.activeAt;
       } else {
-        var fallbackPlan = plans[0];
-        var fallbackTraffic = fallbackPlan ? await getTrafficInfo(fallbackPlan.from, fallbackPlan.direction) : [];
+        var fallbackRoute = routes[0];
+        var fallbackTraffic = fallbackRoute ? await getTrafficInfo(fallbackRoute.from, fallbackRoute.direction) : [];
         widget = createTrafficInfoWidget(fallbackTraffic);
       }
     }
