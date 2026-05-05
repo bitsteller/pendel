@@ -70,9 +70,7 @@ function getNextTrainQuery(from, direction) {
         <QUERY objecttype="TrainAnnouncement" schemaversion="1.9">
             <FILTER>
                 <AND>
-                <NOT> <!-- Ignore trains that have already departed -->
-                    <EXISTS name="TimeAtLocation" value="true" />
-                </NOT>
+                <EXISTS name="TimeAtLocation" value="false" /> <!-- Train not departed yet -->
                 <GT name="AdvertisedTimeAtLocation" value="$dateadd(-3:00:00)" />
                 <LT name="AdvertisedTimeAtLocation" value="$dateadd(3:00:00)" />
                 <OR>
