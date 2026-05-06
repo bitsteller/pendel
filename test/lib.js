@@ -135,13 +135,14 @@ function getStationNamesQuery(locationSignatures) {
 
 function getTrafficInfoQuery(locationSignature1, locationSignature2) {
     var query = `
-        <QUERY objecttype="OperativeEvent" namespace="ols.open" schemaversion="1" orderby="StartDateTime desc, TrafficImpact.PublicMessage.StartDateTime desc" limit="5">
+        <QUERY objecttype="OperativeEvent" namespace="ols.open" schemaversion="1" orderby="TrafficImpact.PublicMessage.StartDateTime desc" limit="5">
             <FILTER>
             <AND>
                 <EQ name="EventState" value="1" />
                 <IN name="EventTrafficType" value="0,2" />
                 <EQ name="Deleted" value="false" />
                 <EXISTS name="TrafficImpact.PublicMessage" value="True" />
+                <LTE name="TrafficImpact.PublicMessage.StartDateTime" value="$now" />
                 <GTE name="TrafficImpact.PublicMessage.EndDateTime" value="$now"/>
                 <AND>
                   <EQ name="TrafficImpact.SelectedSection.SectionLocation.Signature" value="${locationSignature1}"/>
