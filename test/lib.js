@@ -67,7 +67,7 @@ function shortenString(str, limit) {
 
 function getNextTrainQuery(from, direction) {
     var query = `
-        <QUERY objecttype="TrainAnnouncement" schemaversion="1.9">
+        <QUERY objecttype="TrainAnnouncement" namespace="rail.trafficinfo" schemaversion="2.0">
             <FILTER>
                 <AND>
                 <EXISTS name="TimeAtLocation" value="false" /> <!-- Train not departed yet -->
